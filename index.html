@@ -1,0 +1,5527 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3人制 大富豪</title>
+<style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+:root{
+  --bg:#0b3d2e;
+  --panel:#123f35;
+  --panel-dark:#0a2f27;
+  --line:#ffffff22;
+  --text:#f7f7f2;
+  --muted:#c8d7d1;
+  --gold:#ffd166;
+  --danger:#ff6b6b;
+  --ok:#70e1a1;
+}
+
+*{box-sizing:border-box}
+html,body{max-width:100%}
+body{
+  margin:0;
+  min-height:100vh;
+  overflow-x:hidden;
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  color:var(--text);
+  background:radial-gradient(circle at 50% 20%,#17624c,var(--bg));
+}
+button{font:inherit}
+
+.app{
+  width:100%;
+  max-width:1180px;
+  margin:0 auto;
+  padding:14px;
+}
+
+/* ===== Header / status ===== */
+.top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.title{
+  font-size:clamp(22px,4vw,34px);
+  font-weight:900;
+}
+.controls{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:10px 0;
+}
+.btn{
+  border:0;
+  border-radius:10px;
+  padding:10px 16px;
+  min-height:40px;
+  background:#f1f5f3;
+  color:#16332a;
+  font-weight:800;
+  cursor:pointer;
+  text-align:center;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn.primary{background:var(--gold)}
+.btn.danger{background:var(--danger);color:#fff}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn.modeActive{
+  outline:3px solid var(--gold);
+  box-shadow:0 0 0 2px #0003 inset;
+}
+
+#spyModeBtn{
+  background:#4F46E5;
+  color:#fff;
+  border:3px solid #fff;
+}
+#spyModeBtn:hover{background:#6366F1}
+#spyModeBtn.modeActive{border:0}
+
+#strongModeBtn{
+  background:#000;
+  color:#fff;
+  border:3px solid #fff;
+}
+#strongModeBtn:hover{background:#1F2937}
+#strongModeBtn.modeActive{border:0}
+
+.panel,.statusbar{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#0a2f27cc;
+  box-shadow:0 10px 30px #0004;
+}
+.statusbar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:14px;
+  padding:10px 14px;
+}
+.badge{
+  padding:4px 9px;
+  border-radius:999px;
+  background:#ffffff12;
+}
+.badge.hot{background:#8b1e3f}
+.volumeControl{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+}
+.volumeControl input{width:120px}
+
+/* ===== Score table ===== */
+.scoreHistory{
+  margin-top:10px;
+  padding:10px 14px;
+  font-size:13px;
+}
+.scoreHistory.scrollFixed{
+  max-height:170px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.scoreHistory table{
+  width:100%;
+  border-collapse:collapse;
+}
+.scoreHistory th,.scoreHistory td{
+  padding:5px 7px;
+  border-bottom:1px solid #ffffff18;
+  text-align:center;
+}
+.scoreHistory th:first-child,.scoreHistory td:first-child{text-align:left}
+.scoreHistory thead,
+.scoreHistory thead tr,
+.scoreHistory thead th{
+  position:static;
+}
+.scoreHistory tr.setTotal td{
+  font-weight:1000;
+  background:#ffffff10;
+  border-top:2px solid #ffffff55;
+  border-bottom:4px solid #d8b45a;
+}
+#scoreHistory tr.grandTotal{
+  position:sticky;
+  bottom:0;
+  z-index:3;
+}
+#scoreHistory tr.grandTotal td{
+  font-weight:1000;
+  background:#123f35;
+  border-top:0;
+  border-bottom:0;
+}
+
+/* ===== Board / CPU ===== */
+.table{
+  display:grid;
+  grid-template-columns:.58fr 1fr .58fr;
+  gap:8px;
+  margin-top:10px;
+  align-items:center;
+}
+
+.player{
+  min-width:0;
+  min-height:48px;
+  padding:6px 9px;
+  overflow:hidden;
+}
+.player.active{outline:2px solid var(--gold)}
+
+#p1,#p2{
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+
+.cpuInfoRow{
+  display:grid;
+  grid-template-columns:max-content max-content max-content 3em 52px;
+  justify-content:center;
+  align-items:center;
+  column-gap:16px;
+  width:100%;
+  min-width:0;
+}
+.cpuInfoRow .name{display:contents}
+.cpuNameText,
+.cpuModeLabel,
+.player .role,
+.player .count,
+.player .small{
+  margin:0;
+  padding:0;
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+  text-align:center;
+  font-size:17px;
+  line-height:1.2;
+  font-weight:800;
+}
+.cpuNameText,.cpuModeLabel{font-weight:900}
+.cpuModeLabel.strongModeText{color:#ff3b30}
+.player .role{color:var(--gold)}
+#role0{
+  color:var(--gold);
+  font-weight:800;
+}
+.player .count{
+  width:3em;
+  min-width:3em;
+  max-width:3em;
+  font-weight:1000;
+}
+.player .small{
+  width:52px;
+  min-width:52px;
+  max-width:52px;
+  color:var(--muted);
+}
+
+/* Spy hand is independent from CPU info grid */
+.opponentHand{
+  display:none;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  margin-top:6px;
+}
+.spyMode .opponentHand{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  align-items:flex-start;
+  align-content:flex-start;
+  gap:3px;
+}
+.spyMode.player{
+  height:auto;
+  max-height:none;
+  overflow:hidden;
+}
+.opponentHand .card.spyCard{
+  flex:0 0 auto;
+  width:45px;
+  height:67px;
+  min-width:45px;
+  min-height:67px;
+  padding:4px;
+  border-width:1px;
+  border-radius:6px;
+  font-size:13px;
+  box-shadow:0 2px 5px #0005;
+  cursor:default;
+}
+.opponentHand .card.spyCard .suit{font-size:16px}
+.opponentHand .card.spyCard.joker > span:first-child,
+.opponentHand .card.spyCard.joker > span:last-child{
+  font-size:14px;
+  font-family:inherit;
+  font-weight:inherit;
+  letter-spacing:normal;
+}
+.opponentHand .card.spyCard.joker > span:first-child{max-width:100%}
+.opponentHand .card.spyCard.joker > span:last-child{bottom:3px}
+
+/* ===== Center / pile ===== */
+.center{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-height:138px;
+  height:138px;
+  padding:4px 7px;
+  overflow:visible;
+  text-align:center;
+}
+.pile{
+  position:relative;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:123px;
+  height:123px;
+  overflow:visible;
+}
+.pile-play{
+  position:absolute;
+  left:50%;
+  top:50%;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  filter:brightness(.86);
+  transition:.18s transform;
+}
+.pile-play.latest{
+  filter:none;
+  z-index:20;
+}
+
+/* v250 PC actual pile size */
+.pile-play .card{
+  width:58px;
+  height:84px;
+  min-width:58px;
+  min-height:84px;
+  padding:6px;
+  border-width:2px;
+  border-radius:9px;
+  font-size:14px;
+  pointer-events:none;
+}
+.pile-play .card .suit{font-size:22px}
+
+.pile-turn-label{
+  position:absolute;
+  left:50%;
+  top:calc(50% + 58px);
+  transform:translateX(-50%);
+  white-space:nowrap;
+  font-size:13px;
+  color:var(--muted);
+}
+.pilelabel{
+  margin-bottom:2px;
+  color:var(--gold);
+  font-size:17px;
+  font-weight:900;
+  line-height:1.05;
+}
+.message{
+  min-height:20px;
+  margin-top:2px;
+  color:#fff;
+  font-size:15px;
+  line-height:1.1;
+}
+
+/* ===== Hand / cards ===== */
+.handpanel{
+  margin-top:12px;
+  padding:14px;
+}
+#state0{
+  margin-left:1em;
+}
+.handHeader{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:4px;
+}
+#hint{
+  grid-row:2;
+  width:100%;
+  min-height:1.3em;
+  margin:0;
+  text-align:left;
+}
+.hand{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:7px;
+  min-height:132px;
+  margin-top:1em;
+}
+
+.card{
+  width:68px;
+  height:100px;
+  padding:6px;
+  border:2px solid #ddd;
+  border-radius:9px;
+  background:#fff;
+  color:#111;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  font-weight:900;
+  line-height:normal;
+  box-shadow:0 4px 10px #0005;
+  cursor:pointer;
+  user-select:none;
+  transition:.12s transform,.12s box-shadow;
+}
+.card.red{color:#c22}
+.card.black{color:#111}
+.card.joker{
+  position:relative;
+  background:linear-gradient(145deg,#fff,#ffe6a6);
+  color:#7a2a83;
+}
+.card.joker > span:first-child{
+  position:absolute;
+  left:50%;
+  top:6px;
+  transform:translateX(-50%);
+  display:block;
+  width:max-content;
+  max-width:calc(100% - 4px);
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:clip;
+  text-align:center;
+  font:inherit;
+  letter-spacing:normal;
+  line-height:1;
+}
+.card.joker > span:last-child{
+  position:absolute;
+  left:50%;
+  bottom:6px;
+  transform:translateX(-50%);
+  display:block;
+  width:max-content;
+  max-width:calc(100% - 4px);
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:clip;
+  text-align:center;
+  line-height:1;
+}
+.card.joker .suit{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  margin:0;
+  text-align:center;
+}
+.card > span:first-child{text-align:left}
+.card .suit{
+  font-size:24px;
+  text-align:center;
+}
+.card > span:last-child{text-align:right}
+.card.selected{
+  transform:translateY(-13px);
+  outline:3px solid var(--gold);
+  box-shadow:0 12px 20px #0007;
+}
+.card.receivedFlash{
+  animation:receivedCardFlash .36s linear infinite;
+  outline:4px solid #ffe066;
+  box-shadow:0 0 22px #ffe066,0 4px 10px #0005;
+}
+.card.mini{
+  width:58px;
+  height:84px;
+  font-size:14px;
+  cursor:default;
+}
+.card.mini .suit{font-size:22px}
+@keyframes receivedCardFlash{
+  0%,100%{opacity:1;transform:translateY(0) scale(1)}
+  50%{opacity:.28;transform:translateY(-4px) scale(1.04)}
+}
+
+/* Exchange cards use the exact same internal card layout as hand cards */
+.exchangeCards{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  align-items:flex-start;
+  gap:7px;
+  margin:14px 0;
+}
+.exchangeCards .card{
+  width:68px;
+  height:100px;
+  min-width:68px;
+  min-height:100px;
+  padding:6px;
+  font-size:16px;
+}
+.exchangeCards .card .suit{font-size:24px}
+.exchangeAction{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  width:100%;
+  margin-top:10px;
+}
+
+/* ===== Log ===== */
+.log{
+  margin-top:12px;
+  padding:12px;
+  max-height:180px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  font-size:13px;
+}
+.log div{
+  padding:3px 0;
+  border-bottom:1px solid #ffffff0d;
+}
+
+/* ===== Effects ===== */
+.effectOverlay{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  z-index:2147483647;
+  background:#0002;
+  isolation:isolate;
+}
+.effectOverlay.show{display:flex}
+.effectText{
+  position:relative;
+  z-index:1;
+  font-size:clamp(42px,9vw,92px);
+  font-weight:1000;
+  letter-spacing:.08em;
+  text-align:center;
+  text-shadow:0 5px 18px #000,0 0 28px currentColor;
+  animation:effectPop .8s ease both;
+}
+.effectText.eight{color:#ff9f1c}
+.effectText.revolution{color:#ff3b30}
+.effectText.counter{color:#c77dff}
+.effectText.sp3{color:#4dabf7}
+.effectText.foul{color:#ff6b6b}
+.effectText.coup{color:#ffd166}
+@keyframes effectPop{
+  0%{opacity:0;transform:scale(.65)}
+  18%{opacity:1;transform:scale(1.08)}
+  70%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(.96)}
+}
+
+/* ===== Modal base ===== */
+.modal{
+  position:fixed;
+  inset:0;
+  z-index:100;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:#000d;
+}
+.modal.show{display:flex}
+.modal.starterLight,
+.modal.resultLight,
+.modal.exchangeLight{
+  background:transparent;
+  pointer-events:none;
+}
+.modal.starterLight .modalbox,
+.modal.resultLight .modalbox,
+.modal.exchangeLight .modalbox{
+  pointer-events:auto;
+  box-shadow:0 12px 36px #0008;
+}
+
+.modalbox{
+  width:100%;
+  max-width:650px;
+  max-height:90vh;
+  overflow:auto;
+  padding:20px;
+  border:1px solid #ffffff33;
+  border-radius:16px;
+  background:var(--panel);
+  text-align:left;
+  -webkit-overflow-scrolling:touch;
+}
+.modalbox h1,.modalbox h2,.modalbox h3{
+  text-align:center;
+}
+.modalbox h2{margin-top:0}
+.modalbox p,
+.modalbox .rules,
+.modalbox .note,
+.modalbox .aiNote{
+  text-align:left;
+}
+.modalbox button,.modalbox .btn{text-align:center}
+.modeLockNote{
+  color:var(--muted);
+  font-weight:700;
+}
+
+/* Setup modal widths */
+#modalbox.setStartBox,
+#modalbox.starterChoiceBox,
+#modalbox.modeConfirmNarrow,
+#modalbox.gameResultBox{
+  width:max-content;
+  max-width:calc(100vw - 32px);
+  min-width:0;
+}
+#modalbox.starterChoiceBox > p,
+#modalbox.modeConfirmNarrow > p,
+#modalbox.gameResultBox > p:not(.coupMessage){
+  white-space:nowrap;
+}
+
+/* Every exchange modal has the same seven-card width */
+#modalbox.exchangeSevenWide{
+  width:600px;
+  min-width:600px;
+  max-width:600px;
+}
+
+/* Latest requested rules width */
+#modalbox.rulesHalfWidth{
+  width:75%;
+  max-width:585px;
+}
+#modalbox.rulesHalfWidth #rulesClose{
+  display:block;
+  width:max-content;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+.setStartArea{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  width:100%;
+  margin:12px 0;
+}
+.starterChoiceControls{justify-content:center}
+
+/* Result modal */
+.resultRanks{
+  display:grid;
+  grid-template-columns:max-content max-content max-content max-content;
+  justify-content:center;
+  align-items:center;
+  column-gap:14px;
+  row-gap:5px;
+  margin:10px auto;
+  width:max-content;
+  max-width:100%;
+}
+.resultRanks > div{display:contents}
+.resultPlace,.resultName,.resultRole,.resultPoints{
+  white-space:nowrap;
+  text-align:center;
+}
+.gameResultBox .scoreHistory{
+  width:max-content;
+  max-width:100%;
+  margin-left:auto;
+  margin-right:auto;
+}
+.gameResultBox .setResultScoreScroll{
+  display:block;
+  width:100%;
+  max-width:100%;
+  margin:14px 0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  background:#082c24;
+  -webkit-overflow-scrolling:touch;
+}
+.gameResultBox .setResultScoreScroll h3{
+  margin-top:0;
+}
+.gameResultBox .setResultScoreScroll table{
+  width:max-content;
+  min-width:100%;
+}
+.gameResultBox > p.coupMessage{
+  width:100%;
+  max-width:none;
+  margin-left:0;
+  margin-right:0;
+  text-align:center;
+}
+.resultActions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  margin-top:10px;
+}
+.resultActions.setFinishedActions{
+  justify-content:flex-start;
+  text-align:left;
+}
+.resultStrongBtn{
+  border:3px solid #fff !important;
+  background:#000 !important;
+  color:#fff !important;
+}
+.resultStrongBtn:hover{background:#1F2937 !important}
+
+/* Rules / optional AI editor */
+.rules{
+  color:#eaf4f0;
+  font-size:14px;
+  line-height:1.65;
+}
+.aiGrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.aiField{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.aiField label{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+.aiField input,.aiField textarea,.aiField select{
+  width:100%;
+  padding:8px;
+  border:1px solid #ffffff33;
+  border-radius:8px;
+  background:#082c24;
+  color:#fff;
+  font:inherit;
+}
+.aiField textarea{
+  min-height:190px;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-size:12px;
+  line-height:1.45;
+  tab-size:2;
+}
+.aiWide{grid-column:1/-1}
+.aiNote{
+  padding:10px;
+  border-radius:10px;
+  background:#ffffff0b;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.55;
+}
+
+body.exchangePhase .modal{pointer-events:none}
+body.exchangePhase .modalbox{pointer-events:auto}
+body.exchangePhase .top{
+  position:relative;
+  z-index:1001;
+}
+
+.footer{
+  margin:15px;
+  color:var(--muted);
+  font-size:12px;
+  text-align:center;
+}
+
+/* ===== Tablet / phone ===== */
+@media (max-width:768px){
+  body{
+    padding-left:max(10px,env(safe-area-inset-left));
+    padding-right:max(10px,env(safe-area-inset-right));
+    padding-bottom:max(12px,env(safe-area-inset-bottom));
+    font-size:14px;
+  }
+  .app{padding:10px}
+
+  .top > .controls{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    width:100%;
+  }
+  .top > .controls > .btn,
+  .top > .controls > .volumeControl{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-width:0;
+    max-width:none;
+    height:46px;
+    min-height:46px;
+    margin:0;
+    padding:8px 10px;
+    font-size:14px;
+    white-space:nowrap;
+  }
+  .top > .controls > .volumeControl{gap:5px}
+  .top > .controls > .volumeControl input{
+    width:62px;
+    min-width:0;
+  }
+  .top > .controls > .volumeControl #volumeValue{
+    min-width:34px;
+    text-align:right;
+  }
+
+  .scoreHistory.scrollFixed{max-height:150px}
+  .scoreHistory table{min-width:420px}
+  #scoreHistory{overflow:auto}
+
+  /* CPU1 and CPU2 both above the center field */
+  .table{
+    grid-template-columns:1fr;
+    grid-template-rows:auto auto auto;
+    gap:8px;
+  }
+  #p1{grid-column:1;grid-row:1}
+  #p2{grid-column:1;grid-row:2}
+  .center{grid-column:1;grid-row:3}
+
+  #p1,#p2{
+    min-height:auto;
+    padding:8px;
+  }
+  .cpuInfoRow{
+    grid-template-columns:max-content max-content max-content 3em 48px;
+    column-gap:14px;
+  }
+  .cpuNameText,
+  .cpuModeLabel,
+  .player .role,
+  .player .count,
+  .player .small{
+    font-size:15px;
+  }
+  .player .small{
+    width:48px;
+    min-width:48px;
+    max-width:48px;
+  }
+
+  .opponentHand .card.spyCard{
+    position:relative;
+    width:35px;
+    height:52px;
+    min-width:35px;
+    min-height:52px;
+    padding:3px;
+    font-size:20.25px;
+    display:block;
+  }
+  .opponentHand .card.spyCard > span:first-child{
+    position:absolute;
+    left:3px;
+    top:2px;
+    text-align:left;
+  }
+  .opponentHand .card.spyCard > span:last-child{
+    display:none;
+  }
+  .opponentHand .card.spyCard .suit{
+    position:absolute;
+    right:3px;
+    bottom:2px;
+    font-size:26.325px;
+    line-height:1;
+    text-align:right;
+  }
+  .opponentHand .card.spyCard.joker .suit{
+    left:50%;
+    top:auto;
+    right:auto;
+    bottom:3px;
+    transform:translateX(-50%);
+    text-align:center;
+  }
+
+  .center{
+    min-height:180px;
+    height:180px;
+    padding:4px 7px 8px;
+  }
+  .pile{
+    min-height:150px;
+    height:150px;
+  }
+
+  /* v250 smartphone pile size */
+  .pile-play .card{
+    width:78px;
+    height:117px;
+    min-width:78px;
+    min-height:117px;
+    padding:5px;
+    border-width:2px;
+    border-radius:10px;
+    font-size:24px;
+  }
+  .pile-play .card .suit{font-size:39px}
+  .exchangeCards .card{
+    flex:0 0 calc((100% - 21px) / 4);
+    width:calc((100% - 21px) / 4);
+    min-width:0;
+    max-width:calc((100% - 21px) / 4);
+    height:auto;
+    min-height:0;
+    aspect-ratio:78 / 117;
+    padding:5px;
+    border-width:2px;
+    border-radius:10px;
+    font-size:24px;
+    align-self:flex-start;
+  }
+  .exchangeCards .card .suit{font-size:39px}
+  .exchangeCards .card.joker > span:first-child,
+  .exchangeCards .card.joker > span:last-child{
+    font-size:22px;
+  }
+
+  .hand{
+    width:100%;
+    max-width:100%;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    align-content:flex-start;
+    overflow:visible;
+    gap:4px;
+  }
+  .hand .card{
+    flex:0 0 calc((100% - 16px) / 5);
+    width:calc((100% - 16px) / 5);
+    height:auto;
+    aspect-ratio:68 / 100;
+    min-width:0;
+    max-width:calc((100% - 16px) / 5);
+    padding:4px;
+    font-size:21px;
+    align-self:flex-start;
+  }
+  .hand .card .suit{font-size:28.5px}
+  .hand .card.joker > span:first-child,
+  .hand .card.joker > span:last-child{
+    font-size:17px;
+    font-family:inherit;
+    font-weight:inherit;
+    letter-spacing:normal;
+  }
+  .pile-play .card.joker > span:first-child,
+  .pile-play .card.joker > span:last-child{
+    left:50%;
+    font-size:22px;
+    font-family:inherit;
+    font-weight:inherit;
+    letter-spacing:normal;
+  }
+  .hand .card.joker .suit,
+  .pile-play .card.joker .suit{
+    left:50%;
+    top:50%;
+    right:auto;
+    bottom:auto;
+    transform:translate(-50%,-50%);
+    margin:0;
+    line-height:1;
+    text-align:center;
+  }
+  .opponentHand .card.spyCard.joker > span:first-child{
+    left:50%;
+    top:2px;
+    transform:translateX(-50%);
+    width:100%;
+    max-width:100%;
+    padding:0;
+    margin:0;
+    font-size:0;
+    letter-spacing:0;
+    text-align:center;
+  }
+  .opponentHand .card.spyCard.joker > span:first-child::after{
+    content:"JK";
+    font-size:15px;
+    font-family:inherit;
+    font-weight:inherit;
+    letter-spacing:normal;
+  }
+  .opponentHand .card.spyCard.joker > span:last-child{
+    display:none;
+  }
+
+  #effectText{
+    font-size:clamp(48px,15vw,78px);
+    line-height:1.08;
+  }
+
+  .modal{
+    padding:
+      max(12px,env(safe-area-inset-top))
+      max(12px,env(safe-area-inset-right))
+      max(12px,env(safe-area-inset-bottom))
+      max(12px,env(safe-area-inset-left));
+  }
+  .modalbox{
+    max-height:88vh;
+  }
+  #modalbox.starterChoiceBox{
+    width:81%;
+    max-width:81vw;
+  }
+  #modalbox.modeConfirmNarrow,
+  #modalbox.gameResultBox{
+    max-width:calc(100vw - 24px);
+  }
+  #modalbox.starterChoiceBox > p,
+  #modalbox.modeConfirmNarrow > p,
+  #modalbox.gameResultBox > p:not(.coupMessage){
+    white-space:normal;
+  }
+
+  .starterChoiceControls{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    width:100%;
+  }
+  .starterChoice{
+    flex:0 0 auto;
+    width:min(110px,45%);
+    min-width:min(110px,45%);
+    max-width:min(110px,45%);
+    height:44px;
+    min-height:44px;
+    margin:0 auto;
+    padding:0 8px;
+    font-size:18px;
+    font-weight:900;
+  }
+
+  .aiGrid{grid-template-columns:1fr}
+
+  /* Fixed seven-card width where physically possible; screen-safe on narrow devices */
+  #modalbox.exchangeSevenWide{
+    width:min(600px,calc(100vw - 24px));
+    min-width:0;
+    max-width:min(600px,calc(100vw - 24px));
+  }
+}
+
+/* ===== Narrow phone ===== */
+@media (max-width:480px){
+  .top > .controls > .btn,
+  .top > .controls > .volumeControl{
+    height:44px;
+    min-height:44px;
+    font-size:13px;
+  }
+  .top > .controls > .volumeControl input{width:52px}
+
+  .cpuInfoRow{
+    grid-template-columns:max-content max-content max-content 3em 44px;
+    column-gap:10px;
+  }
+  .cpuNameText,
+  .cpuModeLabel,
+  .player .role,
+  .player .count,
+  .player .small{
+    font-size:14px;
+  }
+  .player .small{
+    width:44px;
+    min-width:44px;
+    max-width:44px;
+  }
+
+  .pile-play .card{
+    width:75px;
+    height:113px;
+    min-width:75px;
+    min-height:113px;
+    font-size:22.5px;
+  }
+  .pile-play .card .suit{font-size:36px}
+  .exchangeCards .card{
+    flex:0 0 calc((100% - 21px) / 4);
+    width:calc((100% - 21px) / 4);
+    min-width:0;
+    max-width:calc((100% - 21px) / 4);
+    height:auto;
+    min-height:0;
+    aspect-ratio:75 / 113;
+    font-size:22.5px;
+    align-self:flex-start;
+  }
+  .exchangeCards .card .suit{font-size:36px}
+  .exchangeCards .card.joker > span:first-child,
+  .exchangeCards .card.joker > span:last-child{
+    font-size:20.5px;
+  }
+
+  .hand .card{
+    flex:0 0 calc((100% - 16px) / 5);
+    width:calc((100% - 16px) / 5);
+    height:auto;
+    aspect-ratio:68 / 100;
+    min-width:0;
+    max-width:calc((100% - 16px) / 5);
+    padding:4px;
+    font-size:18px;
+    align-self:flex-start;
+  }
+  .hand .card .suit{font-size:27px}
+  .hand .card.joker > span:first-child,
+  .hand .card.joker > span:last-child{
+    font-size:16px;
+  }
+  .pile-play .card.joker > span:first-child,
+  .pile-play .card.joker > span:last-child{
+    left:50%;
+    font-size:20.5px;
+  }
+  .opponentHand .card.spyCard.joker > span:first-child::after{
+    font-size:14px;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><div class="title">🃏 3人制 大富豪</div><div class="controls"><label class="badge volumeControl">音量 <input id="volumeSlider" type="range" min="0" max="100" value="70"><span id="volumeValue">70%</span></label><button class="btn modeActive" id="normalModeBtn">通常</button><button class="btn" id="spyModeBtn">透視</button><button class="btn" id="strongModeBtn">最強</button><button class="btn" id="rulesBtn">ルール</button><button class="btn danger" id="newBtn">最初から</button></div></div>
+  <div class="statusbar">
+    <span class="badge" id="gameNo">第1ゲーム</span><span class="badge" id="turnText">手番</span><span class="badge" id="revText">通常</span><span class="badge" id="lockText">縛りなし</span><span class="badge" id="scoreText">得点：あなた 0／CPU 1 0／CPU 2 0</span>
+  </div>
+  <div class="panel scoreHistory" id="scoreHistory"></div>
+  <div class="table">
+    <div class="panel player" id="p1"><div class="cpuInfoRow"><div class="name" id="cpuName1">CPU 1</div><div class="role" id="role1">平民</div><div class="count" id="count1">13</div><div class="small" id="state1"></div></div><div class="opponentHand" id="opponentHand1"></div></div>
+    <div class="panel center"><div class="pilelabel" id="pileLabel">場は空です</div><div class="pile" id="pile"></div><div class="message" id="message"></div></div>
+    <div class="panel player" id="p2"><div class="cpuInfoRow"><div class="name" id="cpuName2">CPU 2</div><div class="role" id="role2">平民</div><div class="count" id="count2">13</div><div class="small" id="state2"></div></div><div class="opponentHand" id="opponentHand2"></div></div>
+  </div>
+  <div class="panel handpanel">
+    <div class="handHeader"><div><b>あなたの手札（<span id="count0">13</span>枚）</b> <span class="role" id="role0">平民</span><span class="small" id="state0"></span></div><div class="small" id="hint">カードを選択してください</div></div>
+    <div class="hand" id="hand"></div>
+    <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
+  </div>
+  <div class="panel log" id="log"></div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。</div>
+</div>
+<div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
+<div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
+<script>
+'use strict';
+const SUITS=[['S','♠'],['H','♥'],['D','♦']];
+const RANKS=[3,4,5,6,7,8,9,10,11,12,13,14,15];
+const RN={11:'J',12:'Q',13:'K',14:'A',15:'2',16:'JK'};
+const $=s=>document.querySelector(s); const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let G;
+let VIEW_MODE='normal';
+let CPU_MODE='normal'; // normal | strong
+let CPU_MODE_LOCKED=false;
+
+// runCpu() の重複実行を防ぐ。
+// エフェクト待ちや探索中に複数の setTimeout から同じCPU手番へ侵入しないようにする。
+let CPU_RUN_ACTIVE=false;
+
+let audioCtx=null;
+let SOUND_VOLUME=Math.max(0,Math.min(1,Number(localStorage.getItem('daifugoSoundVolume')||'0.8')));
+
+function positionEffectOverlayForViewport(){
+  const overlay=$('#effectOverlay');
+  if(!overlay)return;
+  if(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches){
+    const center=document.querySelector('.center');
+    if(center){
+      const r=center.getBoundingClientRect();
+      overlay.style.position='fixed';
+      overlay.style.inset='auto';
+      overlay.style.left=`${r.left}px`;
+      overlay.style.top=`${r.top}px`;
+      overlay.style.width=`${r.width}px`;
+      overlay.style.height=`${r.height}px`;
+      overlay.style.display='';
+      overlay.style.alignItems='flex-end';
+      overlay.style.justifyContent='center';
+      overlay.style.padding='0 8px 12px';
+      overlay.style.boxSizing='border-box';
+    }
+  }else{
+    overlay.style.position='';
+    overlay.style.inset='';
+    overlay.style.left='';
+    overlay.style.top='';
+    overlay.style.width='';
+    overlay.style.height='';
+    overlay.style.display='';
+    overlay.style.alignItems='';
+    overlay.style.justifyContent='';
+    overlay.style.padding='';
+    overlay.style.boxSizing='';
+  }
+}
+
+function playSound(type){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    const now=audioCtx.currentTime;
+    const patterns={
+      play:[[330,0,.07,'sine'],[440,.065,.08,'sine']],
+      pass:[[220,0,.11,'triangle'],[165,.09,.16,'triangle']],
+      eight:[[520,0,.06,'square'],[780,.06,.08,'square'],[1040,.13,.13,'square']],
+      revolution:[[260,0,.08,'sawtooth'],[390,.07,.08,'sawtooth'],[520,.14,.09,'sawtooth'],[780,.22,.18,'sawtooth']],
+      sp3:[[880,0,.07,'triangle'],[660,.07,.08,'triangle'],[990,.15,.15,'square']],
+      foul:[[180,0,.10,'sawtooth'],[120,.09,.16,'square'],[90,.20,.20,'sawtooth']]
+    };
+    for(const [freq,delay,dur,wave] of patterns[type]||patterns.play){
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type=wave;o.frequency.setValueAtTime(freq,now+delay);
+      const mobileSoundBoost=window.matchMedia&&window.matchMedia('(max-width: 768px)').matches;
+      const basePeak=
+        type==='play' ? (mobileSoundBoost?.90:.62) :
+        type==='pass' ? (mobileSoundBoost?.72:.36) :
+        .36;
+      const peak=basePeak*SOUND_VOLUME;
+      g.gain.setValueAtTime(.0001,now+delay);g.gain.exponentialRampToValueAtTime(Math.max(.0001,peak),now+delay+.01);g.gain.exponentialRampToValueAtTime(.0001,now+delay+dur);
+      o.connect(g);g.connect(audioCtx.destination);o.start(now+delay);o.stop(now+delay+dur+.02);
+    }
+  }catch(e){}
+}
+async function showEffect(text,kind,sound){
+  const oldPhase=G.phase;
+  G.phase='effect';
+  const overlay=$('#effectOverlay'),label=$('#effectText');
+  positionEffectOverlayForViewport();
+  label.textContent=text;label.className=`effectText ${kind}`;
+  overlay.classList.add('show');
+  if(sound)playSound(sound);
+  render();
+  await sleep(800);
+  overlay.classList.remove('show');
+  label.textContent='';
+  if(!G.over)G.phase=oldPhase==='playing'?'playing':oldPhase;
+}
+
+function showEffectNonBlocking(text,kind,sound){
+  const overlay=$('#effectOverlay'),label=$('#effectText');
+  positionEffectOverlayForViewport();
+  label.textContent=text;
+  label.className=`effectText ${kind}`;
+  overlay.classList.add('show');
+  if(sound)playSound(sound);
+  setTimeout(()=>{
+    overlay.classList.remove('show');
+    if(label.textContent===text)label.textContent='';
+  },800);
+}
+function showStackedEffectNonBlocking(lines,kind,sound){
+  const overlay=$('#effectOverlay'),label=$('#effectText');
+  positionEffectOverlayForViewport();
+  label.innerHTML=lines.map(x=>`<div>${x}</div>`).join('');
+  label.className=`effectText ${kind}`;
+  overlay.classList.add('show');
+  if(sound)playSound(sound);
+  setTimeout(()=>{
+    overlay.classList.remove('show');
+    label.textContent='';
+  },800);
+}
+function rankName(r){return RN[r]||String(r)}
+function cardText(c){return c.joker?'JK':`${c.symbol}${rankName(c.rank)}`}
+function makeDeck(){let d=[];for(const [s,sym] of SUITS)for(const r of RANKS)d.push({id:s+r,suit:s,symbol:sym,rank:r,joker:false});d.push({id:'JK',suit:null,symbol:'★',rank:16,joker:true});return d}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function strength(r,rev){if(r===16)return 99;return rev?18-r:r}
+function isStrongestStraightMove(a,revolution){
+  if(!a||a.type!=='straight'||!a.sequence)return false;
+  if(!revolution){
+    return a.sequence.includes(14)&&a.sequence.includes(15)&&a.sequence.includes(16);
+  }
+  return !!a.revolutionOnlyLowJokerStraight||
+    (a.sequence.length===3&&a.sequence[0]===2&&a.sequence[1]===3&&a.sequence[2]===4&&a.cards.some(c=>c.joker));
+}
+function sortHand(h){h.sort((a,b)=>(a.joker?99:a.rank)-(b.joker?99:b.rank)||(a.suit||'Z').localeCompare(b.suit||'Z'))}
+function* combinations(arr,min=1){
+  const limit=2**arr.length;
+  for(let mask=1;mask<limit;mask++){
+    const x=[];
+    for(let i=0;i<arr.length;i++)if((mask>>i)&1)x.push(arr[i]);
+    if(x.length>=min)yield x;
+  }
+}
+function analyses(cards){
+  const n=cards.length,j=cards.filter(c=>c.joker).length,nat=cards.filter(c=>!c.joker),res=[];
+  if(n===1){const c=cards[0];res.push({type:'single',n:1,rank:c.joker?16:c.rank,suits:c.joker?[]:[c.suit],cards});return res}
+  const ranks=[...new Set(nat.map(c=>c.rank))];
+  if(n<=4&&ranks.length===1 && nat.length>0 && nat.length+j===n){res.push({type:'group',n,rank:ranks[0],suits:nat.map(c=>c.suit).sort(),cards,revolution:n===3||n===4})}
+  if(n>=3 && nat.length>0){
+    const suits=[...new Set(nat.map(c=>c.suit))];
+    if(suits.length===1 && new Set(nat.map(c=>c.rank)).size===nat.length){
+      for(let start=3;start<=16-n+1;start++){
+        const seq=Array.from({length:n},(_,i)=>start+i);
+        if(nat.every(c=>seq.includes(c.rank)) && seq.filter(r=>!nat.some(c=>c.rank===r)).length===j)
+          res.push({type:'straight',n,rank:start,suits:[suits[0]],cards,sequence:seq,revolution:false});
+      }
+
+      // 革命中専用の端階段：Joker・3・4。
+      // 2-3-4 の「2」をJokerが補う仮想階段として扱い、革命中では最強の3枚階段にする。
+      if(n===3&&j===1&&nat.length===2&&nat.some(c=>c.rank===3)&&nat.some(c=>c.rank===4)){
+        res.push({
+          type:'straight',n:3,rank:2,suits:[suits[0]],cards,
+          sequence:[2,3,4],revolution:false,revolutionOnlyLowJokerStraight:true
+        });
+      }
+    }
+  }
+  return res
+}
+function analysesInState(cards,revolution){
+  return analyses(cards).filter(a=>!a.revolutionOnlyLowJokerStraight||revolution);
+}
+function suitSignature(a){if(a.type==='straight')return a.suits[0];if(a.type==='single')return a.suits[0]||null;return a.suits.join('')}
+function compatible(a){
+  if(a.revolutionOnlyLowJokerStraight&&!G.revolution)return false;
+  const p=G.pile;if(!p)return true;
+  if(p.type!==a.type||p.n!==a.n)return false;
+  if(p.type==='single'&&p.rank===16)return a.cards.length===1&&a.cards[0].id==='S3';
+  if(strength(a.rank,G.revolution)<=strength(p.rank,G.revolution))return false;
+  if(G.lock){
+    const naturalSuitList=a.cards.filter(c=>!c.joker).map(c=>c.suit).sort();
+    const jokerCount=a.cards.filter(c=>c.joker).length;
+    if(a.type==='single'){
+      // 単騎ジョーカーだけは縛りの影響を受けない。
+      // 通常カードは、縛られているスートと完全に一致する必要がある。
+      if(jokerCount===0 && naturalSuitList[0]!==G.lock)return false;
+    }else if(a.type==='straight'){
+      // 階段では、すべての通常カードが縛りのスートと一致する必要がある。
+      // ジョーカー自身にはスートを要求しない。
+      if(naturalSuitList.some(s=>s!==G.lock))return false;
+    }else{
+      // ペア・トリオでは、通常カードのスートは縛りのスート集合に含まれ、
+      // 不足するスートだけをジョーカーが補える。
+      const required=G.lock.split('').sort();
+      const remaining=[...required];
+      for(const suit of naturalSuitList){
+        const idx=remaining.indexOf(suit);
+        if(idx<0)return false;
+        remaining.splice(idx,1);
+      }
+      if(remaining.length>jokerCount)return false;
+    }
+  }
+  return true
+}
+function chooseAnalysis(cards){return analyses(cards).filter(compatible).sort((a,b)=>strength(a.rank,G.revolution)-strength(b.rank,G.revolution))[0]||null}
+function moveAnalysisKey(a){
+  return `${a.type}:${a.n}:${a.rank}:${(a.sequence||[]).join(',')}:${a.cards.map(c=>c.id).sort().join('|')}`;
+}
+function allLegal(player){
+  if(G.pile&&player.passed)return [];
+  const h=player.hand,out=[],seen=new Set();
+  for(const cs of combinations(h)){
+    for(const a of analyses(cs)){
+      if(!compatible(a))continue;
+      const k=moveAnalysisKey(a);
+      if(seen.has(k))continue;
+      seen.add(k);out.push(a);
+    }
+  }
+  return out
+}
+function isFoulFinish(a){
+  return isFoulFinishInState(a,G.revolution);
+}
+function isFoulRiskCard(c){
+  if(c.joker||c.rank===8)return true;
+  if(G.revolution)return c.rank===3;
+  return c.rank===15||c.id==='S3';
+}
+function isFoulRiskCardInState(c,revolution){
+  if(c.joker||c.rank===8)return true;
+  if(revolution)return c.rank===3;
+  return c.rank===15||c.id==='S3';
+}
+function moveLeavesOnlyFoulCards(player,move){
+  // 【絶対】ある手を出した結果、残り手札が反則上がり対象のカードだけになる手は出さない。
+  // 革命手なら、残り札は革命後の状態（2は可、3は反則）で評価する。
+  const used=new Set(move.cards.map(c=>c.id));
+  const remaining=player.hand.filter(c=>!used.has(c.id));
+  if(!remaining.length)return false;
+  const afterRevolution=move.revolution?!G.revolution:G.revolution;
+  return remaining.every(c=>isFoulRiskCardInState(c,afterRevolution));
+}
+function playerLabel(i){return i===0?'あなた':`CPU ${i}`}
+function historyNote(h){
+  const notes=[];
+  if(h.cpuMode==='strong')notes.push('最強');
+  for(const name of (h.foulNames||[]))notes.push(`${name} 反則上がり`);
+  if(h.coupName)notes.push(`${h.coupName} 都落ち`);
+  return notes.length?`（${notes.join('／')}）`:'';
+}
+function historyRowsHtml(history){
+  let html='';
+  const sets=[...new Set(history.map(h=>h.setNo))];
+  for(const setNo of sets){
+    const rows=history.filter(h=>h.setNo===setNo);
+    rows.forEach((h,idx)=>{html+=`<tr class="${idx===0&&setNo>1?'setStart':''}"><td>第${h.setNo}セット・第${h.gameInSet}ゲーム${historyNote(h)}</td><td>+${h.points[0]}</td><td>+${h.points[1]}</td><td>+${h.points[2]}</td></tr>`});
+    if(rows.length===4){
+      const totals=[0,1,2].map(i=>rows.reduce((sum,h)=>sum+h.points[i],0));
+      html+=`<tr class="setTotal"><td>第${setNo}セット合計</td><td>${totals[0]}点</td><td>${totals[1]}点</td><td>${totals[2]}点</td></tr>`;
+    }
+  }
+  return html;
+}
+function scrollToBottom(el){
+  if(!el)return;
+  // DOM更新直後に常に最新行が見える位置へ固定する。
+  el.scrollTop=el.scrollHeight;
+}
+function addLog(t){
+  const log=$('#log');
+  const d=document.createElement('div');
+  d.textContent=t;
+  log.append(d); // 古いログが上、最新ログが下
+  scrollToBottom(log);
+}
+function renderCard(c,mini=false){const d=document.createElement('div');d.className=`card ${mini?'mini ':''}${c.joker?'joker':(c.suit==='H'||c.suit==='D')?'red':'black'}`;if(!mini&&G&&G.receivedFlashCardId===c.id&&Date.now()<(G.receivedFlashUntil||0))d.classList.add('receivedFlash');d.dataset.id=c.id;d.innerHTML=c.joker?`<span>JOKER</span><span class="suit">★</span><span>JK</span>`:`<span>${rankName(c.rank)}</span><span class="suit">${c.symbol}</span><span>${rankName(c.rank)}</span>`;return d}
+function orderedPileCards(entry){
+  if(entry.type!=='straight')return [...entry.cards];
+  // 階段は革命の有無にかかわらず、画面上では数字の昇順で表示する。
+  const natural=entry.cards.filter(c=>!c.joker).sort((a,b)=>a.rank-b.rank||(a.suit||'').localeCompare(b.suit||''));
+  const jokers=entry.cards.filter(c=>c.joker);
+  if(!jokers.length||!entry.sequence)return [...natural,...jokers];
+  const byRank=new Map(natural.map(c=>[c.rank,c]));
+  const jokerQueue=[...jokers];
+  return entry.sequence.map(r=>byRank.get(r)||jokerQueue.shift()).filter(Boolean);
+}
+function renderSpyCard(c){
+  const d=renderCard(c);
+  d.classList.add('spyCard');
+  d.onclick=null;
+  return d;
+}
+function canSwitchToStrongNow(){
+  if(CPU_MODE!=='normal'||!G)return false;
+  if(G.over)return true;
+  if(G.phase!=='playing')return !CPU_MODE_LOCKED;
+  if(G.turn!==0)return false;
+  const userHasPlayed=(G.playedByRecords||[]).some(r=>r.player===0&&r.cardIds&&r.cardIds.length>0);
+  return !userHasPlayed;
+}
+
+function renderViewMode(){
+  const spy=VIEW_MODE==='spy';
+  const normalBtn=$('#normalModeBtn'),strongBtn=$('#strongModeBtn');
+  normalBtn.classList.toggle('modeActive',!spy);
+  $('#spyModeBtn').classList.toggle('modeActive',spy);
+
+  // 「最強」ボタンは常時表示。選択後も表示したままにする。
+  // CPUモードの切替はゲーム開始前／ゲーム終了後のみ可能。
+  if(strongBtn){
+    strongBtn.style.display='inline-block';
+    strongBtn.classList.toggle('modeActive',CPU_MODE==='strong');
+  }
+  if(normalBtn){
+    const showNormal=CPU_MODE==='normal'||spy||(CPU_MODE==='strong'&&!CPU_MODE_LOCKED)||(G&&G.over);
+    normalBtn.style.display=showNormal?'inline-block':'none';
+    normalBtn.textContent='通常';
+  }
+  for(const i of [1,2]){
+    const panel=$(`#p${i}`);
+    const handEl=$(`#opponentHand${i}`);
+    if(panel)panel.classList.toggle('spyMode',spy);
+    if(!handEl)continue;
+    handEl.innerHTML='';
+    if(spy&&G&&G.players&&G.players[i]){
+      const cards=[...G.players[i].hand];
+      sortHand(cards);
+      for(const c of cards)handEl.append(renderSpyCard(c));
+    }
+  }
+}
+function render(){
+  // ゲーム決着後から結果モーダルが表示されるまでは盤面全体を凍結する。
+  // 階級・得点・手札枚数・各ボタンなどを個別に制御せず、直前の表示をそのまま保持する。
+  if(G&&G.resultPending&&!G.resultModalShown)return;
+  if($('#cpuName1'))$('#cpuName1').innerHTML=`<span class="cpuNameText">CPU 1</span><span class="cpuModeLabel${CPU_MODE==='strong'?' strongModeText':''}">${CPU_MODE==='strong'?'最強':'通常'}</span>`;
+  if($('#cpuName2'))$('#cpuName2').innerHTML=`<span class="cpuNameText">CPU 2</span><span class="cpuModeLabel${CPU_MODE==='strong'?' strongModeText':''}">${CPU_MODE==='strong'?'最強':'通常'}</span>`;
+  document.body.classList.toggle('exchangePhase',!!(G&&G.phase==='exchange'));
+  document.body.classList.toggle('resultPhase',!!(G&&G.over));
+  $('#gameNo').textContent=`第${G.setNo}セット・第${G.gameInSet}ゲーム`;$('#scoreText').textContent=`得点 あなた：${G.scores[0]}／CPU 1：${G.scores[1]}／CPU 2：${G.scores[2]}`;$('#revText').textContent=G.revolution?'革命中':'通常';
+  const history=G.gameHistory||[];
+  const visibleHistory=(G.over&&!G.resultModalShown&&history.length)?history.slice(0,-1):history;
+  const visibleScores=[0,1,2].map(i=>visibleHistory.reduce((sum,h)=>sum+h.points[i],0));
+  $('#scoreHistory').classList.toggle('scrollFixed',G.setNo>=2||visibleHistory.length>4);
+  const showGrandTotal=visibleHistory.some(h=>h.setNo>=2&&h.gameInSet>=1);
+  $('#scoreHistory').innerHTML=`<b>ゲーム別得点</b><table><thead><tr><th>ゲーム</th><th>あなた</th><th>CPU 1</th><th>CPU 2</th></tr></thead><tbody>${visibleHistory.length?historyRowsHtml(visibleHistory):'<tr><td colspan="4" class="small">まだ終了したゲームはありません。</td></tr>'}${showGrandTotal?`<tr class="grandTotal"><td><b>累計</b></td><td><b>${visibleScores[0]}</b></td><td><b>${visibleScores[1]}</b></td><td><b>${visibleScores[2]}</b></td></tr>`:''}</tbody></table>`;scrollToBottom($('#scoreHistory'));$('#revText').classList.toggle('hot',G.revolution);$('#lockText').textContent=G.lock?`縛り：${G.lock.replace('S','♠').replace('H','♥').replace('D','♦')}`:'縛りなし';
+  $('#turnText').textContent=G.over?'ゲーム終了':G.phase!=='playing'?'開始準備中':`${playerLabel(G.turn)}の手番`;
+  for(let i=0;i<3;i++){
+    const p=G.players[i];
+    const roleEl=$(`#role${i}`),countEl=$(`#count${i}`),stateEl=$(`#state${i}`),playerEl=$(`#p${i}`);
+    if(roleEl)roleEl.textContent=p.role;
+    if(countEl)countEl.textContent=i===0?String(p.hand.length):`${p.hand.length}枚`;
+    if(stateEl)stateEl.textContent=p.finished?(p.foul?'反則上がり':'上がり'):p.passed?'パス中':'';
+    if(playerEl)playerEl.classList.toggle('active',G.turn===i&&!G.over&&G.phase==='playing');
+  }
+  renderPile();
+  sortHand(G.players[0].hand);$('#hand').innerHTML='';for(const c of G.players[0].hand){const e=renderCard(c);if(G.selected.has(c.id))e.classList.add('selected');e.onclick=()=>{if(G.phase!=='playing'||G.turn!==0||G.over||G.eightCutPending||G.players[0].finished||(G.pile&&G.players[0].passed))return;G.selected.has(c.id)?G.selected.delete(c.id):G.selected.add(c.id);render()};$('#hand').append(e)}
+  const sel=G.players[0].hand.filter(c=>G.selected.has(c.id));const a=sel.length?chooseAnalysis(sel):null;$('#hint').textContent=sel.length?(a?`出せます：${a.type==='straight'?'階段':a.type==='group'?a.n+'枚組':'1枚'}`:'この組み合わせは出せません'):'カードを選択してください';
+  $('#playBtn').disabled=G.phase!=='playing'||G.turn!==0||G.over||G.eightCutPending||G.players[0].passed||!a;$('#passBtn').disabled=G.phase!=='playing'||G.turn!==0||G.over||G.eightCutPending||G.players[0].passed||!G.pile;$('#clearBtn').disabled=G.eightCutPending||!G.selected.size;
+  $('#nextBtn').style.display=G.over&&G.resultModalShown?'inline-block':'none';$('#nextBtn').textContent=G.gameInSet===4?'次のセット':'次のゲーム';
+  $('#blindBtn').style.display=G.over&&G.gameInSet===4&&G.resultModalShown?'inline-block':'none';
+  renderViewMode();
+
+  // 得点表とログは、再描画のたびに常に最新内容（最下部）を表示する。
+  scrollToBottom($('#scoreHistory'));
+  scrollToBottom($('#log'));
+}
+
+function renderPile(){
+  const el=$('#pile');el.innerHTML='';
+  const hist=G.pileHistory||[];
+  if(!G.pile||!hist.length){$('#pileLabel').textContent='場は空です';return}
+  const shown=hist.slice(-2);
+  shown.forEach((entry,idx)=>{
+    const wrap=document.createElement('div');
+    const latest=idx===shown.length-1;
+    wrap.className=`pile-play${latest?' latest':''}`;
+    // 直近2手を横に寄せ、前の手は約80%に縮小してカード端が少し重なるように表示する。
+    const hasPrevious=shown.length===2;
+    const x=hasPrevious?(latest?30:-38):0;
+    const y=hasPrevious?(latest?6:-4):0;
+    let scale=latest?1:.8;
+
+    // スマホでは、枚数の多い階段が場枠からはみ出さないよう、
+    // 現在の場枠幅に対してぎりぎり収まる倍率まで自動縮小する。
+    if(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches&&entry.type==='straight'){
+      const centerEl=document.querySelector('.center');
+      const centerWidth=centerEl?centerEl.clientWidth:window.innerWidth;
+      const cardWidth=78; // smartphone pile card width
+      const gap=7;
+      const naturalWidth=entry.cards.length*cardWidth+Math.max(0,entry.cards.length-1)*gap;
+      const usableWidth=Math.max(120,centerWidth-20);
+      const fitScale=Math.min(1,usableWidth/naturalWidth);
+      scale*=fitScale;
+
+      // 長い階段は「左端を中央基準に置く」のではなく、
+      // グループ全体の中心が場の中央に来るよう補正する。
+      const scaledWidth=naturalWidth*scale;
+      const centerCorrection=-(scaledWidth/2);
+      wrap.style.left='50%';
+      wrap.style.transform=`translate(${centerCorrection + x}px,calc(-50% + ${y}px)) scale(${scale})`;
+      wrap.style.transformOrigin='left center';
+    }else{
+      wrap.style.transform=`translate(calc(-50% + ${x}px),calc(-50% + ${y}px)) scale(${scale})`;
+      wrap.style.transformOrigin='center center';
+    }
+    wrap.style.zIndex=String(10+idx);
+    // 場札はminiカードとして生成しない。
+    // 手札と同じ通常カード構造を使い、場札専用CSSでサイズだけ変更する。
+    orderedPileCards(entry).forEach(c=>wrap.append(renderCard(c,false)));
+    el.append(wrap);
+  });
+  const last=hist[hist.length-1];
+  $('#pileLabel').textContent=`${playerLabel(last.player)}：${last.type==='single'?'1枚':last.type==='group'?last.n+'枚組':last.n+'枚階段'}（${rankName(last.rank)}）`;
+}
+
+function nextActive(from,ignorePassed=false){for(let k=1;k<=3;k++){let i=(from+k)%3,p=G.players[i];if(!p.finished&&(ignorePassed||!G.pile||!p.passed))return i}return from}
+function activePlayers(){return G.players.filter(p=>!p.finished)}
+function clearPile(starter,reason){
+  // 場が流れる直前のパス状況を保持する。
+  const lastPile=G.pile;
+  const lastLead=G.lead;
+  const passers=G.trickPassers
+    ? [...G.trickPassers]
+    : G.players.map((p,j)=>({p,j}))
+        .filter(o=>o.j!==lastLead&&!o.p.finished&&o.p.passed)
+        .map(o=>o.j);
+
+  G.lastClearPassContext=(lastPile&&lastLead!==null)
+    ?{
+        leader:lastLead,
+        type:lastPile.type,
+        n:lastPile.n,
+        rank:lastPile.rank,
+        cardIds:(lastPile.cards||[]).map(c=>c.id),
+        passers,
+        starter,
+        locked:!!G.lock
+      }
+    :null;
+
+  const commonPoorJustRevolted=!!G.commonPoorRevolutionLock;
+  G.pile=null;
+  G.pileHistory=[];
+  G.lock=null;
+  G.eightCutPending=false;
+  G.commonPoorRevolutionLock=false;
+  
+  if(commonPoorJustRevolted)G.commonPoorNoLeadRevolutionOnce=true;
+
+  G.players.forEach(p=>p.passed=false);
+  G.trickPassers=new Set();
+
+  G.turn=G.players[starter].finished?nextActive(starter,true):starter;
+  G.lead=null;
+  addLog(`${reason}。${playerLabel(G.turn)}から開始`);
+}
+
+function allOtherActivePlayersPassedThisTrick(){
+  if(!G.pile||G.lead===null)return false;
+  if(!G.trickPassers)G.trickPassers=new Set();
+  // 旧来のpassedフラグが立っている場合も、同じトリックのパス履歴として補完する。
+  G.players.forEach((p,i)=>{
+    if(i!==G.lead&&!p.finished&&p.passed)G.trickPassers.add(i);
+  });
+  const others=G.players.map((p,i)=>({p,i}))
+    .filter(o=>!o.p.finished&&o.i!==G.lead);
+  if(!others.length)return false;
+  const passers=G.trickPassers||new Set();
+  return others.every(o=>passers.has(o.i));
+}
+
+function checkFlow(){
+  if(!G.pile)return false;
+  if(allOtherActivePlayersPassedThisTrick()){
+    const s=G.lead;
+    clearPile(s,'場が流れました');
+    return true;
+  }
+  return false;
+}
+
+function passWillClearPile(){
+  return allOtherActivePlayersPassedThisTrick();
+}
+async function finishCpuPass(i){
+  // 最終安全ゲート：空場ではパス不可。
+  // 誤ってパス経路に入っても、パス状態を解除して同じCPUに手番を戻す。
+  if(!G.pile){
+    G.players[i].passed=false;
+    G.turn=i;
+    render();
+    setTimeout(runCpu,0);
+    return;
+  }
+  render();
+  if(passWillClearPile())await sleep(900);
+  if(!checkFlow())G.turn=nextActive(i);
+  render();setTimeout(runCpu,400);
+}
+
+async function cpuTryPass(i){
+  // CPUの全パス経路をここに集約する。
+  // 空場ではログ・効果音・passedフラグを一切発生させない。
+  if(!G.pile)return false;
+  const p=G.players[i];
+  p.passed=true;
+  if(!G.trickPassers)G.trickPassers=new Set();
+  G.trickPassers.add(i);
+  playSound('pass');
+  addLog(`${playerLabel(i)}：パス`);
+  await finishCpuPass(i);
+  return true;
+}
+async function playMove(i,a){
+  const effectOverlayNow=$('#effectOverlay');
+  const effectTextNow=$('#effectText');
+  if(effectOverlayNow&&!effectOverlayNow.classList.contains('show')){
+    effectOverlayNow.classList.remove('show');
+    if(effectTextNow)effectTextNow.textContent='';
+  }
+  const transientEffectLabel=$('#effectText');
+  if(transientEffectLabel&&$('#effectOverlay')&&!$('#effectOverlay').classList.contains('show'))transientEffectLabel.textContent='';
+  const revolutionBefore=G.revolution;
+  if(G.phase!=='playing')return;
+  // 新しい実出札が行われた時点で、直前の場流れ時パス履歴は役目を終える。
+  G.lastClearPassContext=null;
+  if(G.commonPoorNoLeadRevolutionOnce)G.commonPoorNoLeadRevolutionOnce=false;
+  const p=G.players[i],prev=G.pile,prevSig=prev?suitSignature(prev):null,newSig=suitSignature(a);
+
+  p.hand=p.hand.filter(c=>!a.cards.some(x=>x.id===c.id));
+  G.turnCount=(G.turnCount||0)+1;
+  p.passed=false;G.pile=a;G.lead=i;
+  // 新しい出札が行われた時点で、このトリックのパス履歴をリセットする。
+  G.trickPassers=new Set();
+  G.pileHistory=G.pileHistory||[];G.pileHistory.push({...a,cards:[...a.cards],player:i});
+  if(a.cards.some(c=>c.joker))G.jokerPlayed=true;
+  if(a.cards.some(c=>c.id==='S3'))G.spade3Played=true;
+  G.playedCardIds=G.playedCardIds||[];for(const c of a.cards)if(!G.playedCardIds.includes(c.id))G.playedCardIds.push(c.id);
+  // CPUは、誰がどのカードを出したかをゲーム中すべて記憶する。
+  G.playedByRecords=G.playedByRecords||[];
+  G.playedByRecords.push({player:i,cardIds:a.cards.map(c=>c.id)});
+  G.lastPlayedMove={player:i,type:a.type,n:a.n,rank:a.rank,cardIds:a.cards.map(c=>c.id)};
+  G.selected.clear();
+  addLog(`${playerLabel(i)}：${a.cards.map(cardText).join(' ')} を出しました`);
+
+  if(prev && !a.cards.some(c=>c.joker) && prevSig && newSig && prevSig===newSig){
+    // このトリックで初めて縛りが成立した瞬間だけログを出す。
+    // すでにG.lockが設定済みなら、縛り継続中なので再表示しない。
+    if(!G.lock&&!a.revolution)addLog('縛りが成立しました');
+    G.lock=newSig;
+  }
+
+  const sp3=prev&&prev.type==='single'&&prev.rank===16&&a.type==='single'&&a.cards[0].id==='S3';
+  const eight=a.type!=='straight'&&a.rank===8;
+  const strongestStraight=isStrongestStraightMove(a,G.revolution);
+  const effects=[];
+  if(a.revolution){
+    // 富豪が未上がりの状態で平民・貧民が革命した場合、場が流れるまで
+    // 平民・貧民による革命返しを禁止するためのロックを立てる。
+    const richIndexBefore=G.players.findIndex(x=>x.role==='富豪');
+    const richStillPlayingBefore=richIndexBefore>=0&&!G.players[richIndexBefore].finished;
+    if(richStillPlayingBefore&&(p.role==='平民'||p.role==='貧民'))G.commonPoorRevolutionLock=true;
+
+    G.revolution=!G.revolution;
+    const counter=!G.revolution;
+    addLog(counter?'革命返し！':'革命！');
+
+    // 8革命は後段で「革命/革命返し」と「8切り」を同時に縦表示する。
+    if(!eight){
+      effects.push({text:counter?'革命返し！':'革命！',kind:counter?'counter':'revolution',sound:'revolution'});
+    }
+  }
+  if(sp3)effects.push({text:'スペ3返し！',kind:'sp3',sound:'sp3'});
+
+  let foul=false;
+  let foulCoup=false;
+  if(p.hand.length===0){
+    foul=isFoulFinishInState(a,revolutionBefore);p.finished=true;p.foul=foul;G.finishers.push({i,foul});
+    foulCoup=!!(foul&&p.role==='富豪');
+
+    const firstGameAllCommonFoul=
+      foul&&
+      G.gameInSet===1&&
+      G.players.every((x,j)=>j===i||x.role==='平民');
+
+    if(firstGameAllCommonFoul){
+      p.role='貧民';
+      addLog(`${playerLabel(i)}は反則上がりです。貧民に確定し、残り2人で対戦を続けます`);
+    }else if(foul&&p.role==='富豪'){
+      G.richFoulCoup=true;
+      addLog(`反則上がり・都落ち！ ${playerLabel(i)}は貧民になります`);
+    }else{
+      addLog(foul?`${playerLabel(i)}は反則上がりです`:`${playerLabel(i)}が上がりました`);
+    }
+  }
+
+  render();
+
+  // 出札音は、カードを出した直後のこの位置で必ず1回だけ鳴らす。
+  // 特殊効果の表示側では音を追加で鳴らさない。
+  const coupWillOccur=(()=>{
+    if(!p.finished||foul)return false;
+    const rich=G.players.findIndex(x=>x.role==='富豪');
+    return rich>=0&&i!==rich&&!G.players[rich].finished;
+  })();
+
+  // 1手に複数の特殊効果が重なっても、出札時の音は1種類だけにする。
+  // 反則上がりが起きた場合は他の特殊効果より最優先し、反則上がり専用音だけを鳴らす。
+  const cardSound=
+    foul?'foul':
+    coupWillOccur?'revolution':
+    a.revolution?'revolution':
+    eight?'eight':
+    sp3?'sp3':
+    'play';
+
+  playSound(cardSound);
+
+  if(foul){
+    // 反則上がり時は、革命・8切り・スペ3返し等のエフェクトを表示しない。
+    // 富豪の反則上がり＝都落ちの場合だけ、2つを縦に並べて同時表示する。
+    if(foulCoup){
+      await new Promise(resolve=>{
+        showStackedEffectNonBlocking(['反則上がり','都落ち'],'foul coup',null);
+        setTimeout(resolve,800);
+      });
+    }else{
+      await showEffect('反則上がり','foul',null);
+    }
+  }else{
+    for(const e of effects){
+      await showEffect(e.text,e.kind,null);
+    }
+  }
+
+  // 8切りは進行処理を最優先し、表示・AI評価ではブロックしない。
+  if(eight){
+    // 8を出した直後から場が流れるまで、メインプレイヤーの操作を一時ロックする。
+    G.eightCutPending=true;
+
+    // 反則上がりでない8だけ、8切り（必要なら革命と同時）の表示を行う。
+    if(!foul){
+      if(a.revolution){
+        const revText=G.revolution?'革命！':'革命返し！';
+        showStackedEffectNonBlocking([revText,'8切り'],'revolution eight',null);
+      }else{
+        showEffectNonBlocking('8切り','eight',null);
+      }
+    }
+
+    // パスで場が流れる場合と同様、最後に出した8を少し表示してから場を流す。
+    render();
+    await sleep(900);
+    clearPile(i,'8切り');
+    G.eightCutPending=false;
+
+    // 8で上がった場合も、反則上がりで残り2人以上いるなら対戦を続行する。
+    // 第1ゲームの全員平民状態では、反則者だけが貧民に確定し、
+    // 残り2人の1位・2位が決まるまでゲーム終了処理へ進まない。
+    if(p.finished){
+      if(!foul){
+        const coupOrder=resolveCoupIfNeeded(i);
+        if(coupOrder){
+          await showCoupEffectGuaranteed();
+          await finishGame(coupOrder,true);
+          render();
+          return;
+        }
+      }
+
+      if(activePlayers().length<=1){
+        await finishGame();
+        render();
+        return;
+      }
+    }
+
+    // UIと操作可能状態を先に復帰。
+    if(!G.over)G.phase='playing';
+    render();
+    
+    if(!G.over&&G.turn!==0){
+      // 通常の場流しと同じく、場を流した後は約400msでCPU判断へ進む。
+      setTimeout(runCpu,400);
+    }
+    return;
+  }
+
+  if(p.finished&&!foul){
+    const coupOrder=resolveCoupIfNeeded(i);
+    if(coupOrder){
+      await showCoupEffectGuaranteed();
+      await finishGame(coupOrder,true);
+      render();
+      return;
+    }
+  }
+  if(activePlayers().length<=1){await finishGame();render();return}
+  if(sp3||strongestStraight){
+    if(strongestStraight&&!sp3&&!eight)await sleep(900);
+    clearPile(i,sp3?'スペ3返し':eight?'8切り':'最強階段');
+    render();setTimeout(runCpu,500);return;
+  }
+  if(passWillClearPile())await sleep(900);
+  if(!checkFlow())G.turn=nextActive(i);
+  render();setTimeout(runCpu,500);
+}
+async function showCoupEffectGuaranteed(){
+  // 結果画面や他エフェクトに上書きされないよう、都落ち表示を専用経路で完了させる。
+  const overlay=$('#effectOverlay'),label=$('#effectText');
+  const oldPhase=G.phase;
+  G.phase='effect';
+  label.textContent='都落ち';
+  label.className='effectText coup';
+  overlay.classList.add('show');
+  render();
+  await sleep(900);
+  overlay.classList.remove('show');
+  label.textContent='';
+  if(!G.over)G.phase=oldPhase==='playing'?'playing':oldPhase;
+}
+
+function resolveCoupIfNeeded(winner){
+  const rich=G.players.findIndex(p=>p.role==='富豪');
+  if(rich<0||winner===rich||G.players[rich].finished)return null;
+  const common=[0,1,2].find(i=>i!==winner&&i!==rich);
+  addLog(`都落ち！ ${playerLabel(winner)}が富豪、${playerLabel(common)}が平民、${playerLabel(rich)}が貧民に確定しました`);
+  return [winner,common,rich];
+}
+
+function gamePlayedCardIds(){
+  // ゲーム間で保持するための「既出カード」情報。数字だけでなくスートまで保持する。
+  return [...new Set((G.playedCardIds||[]))];
+}
+
+function updateBlindInferenceAtGameEnd(order){
+  G.cpuBlindKnowledge=G.cpuBlindKnowledge||[null,null,null];
+  G.cpuBlindRankHistory=G.cpuBlindRankHistory||[[],[],[]];
+  G.cpuBlindCandidateIds=G.cpuBlindCandidateIds||[null,null,null];
+  G.cpuBlindInferenceActive=G.cpuBlindInferenceActive||[false,false,false];
+
+  const playedIds=gamePlayedCardIds();
+
+  if(G.gameInSet===1){
+    for(const i of [1,2]){
+      const finishingRole=(order.indexOf(i)===0?'富豪':order.indexOf(i)===1?'平民':'貧民');
+      if(finishingRole==='貧民'){
+        // 第1ゲームで貧民になったCPUは既存仕様どおりブラインドを直接特定。
+        G.cpuBlindKnowledge[i]=G.blind.id;
+        G.cpuBlindInferenceActive[i]=false;
+        G.cpuBlindCandidateIds[i]=null;
+        G.cpuBlindRankHistory[i]=[];
+      }else{
+        // 富豪/平民は、第1ゲームで出たカードを数字＋スートまでセット内で保持する。
+        G.cpuBlindInferenceActive[i]=true;
+        G.cpuBlindRankHistory[i]=[[...playedIds]];
+        // ブラインド候補はJokerも含む全40枚から開始し、既出カードを除外する。
+        G.cpuBlindCandidateIds[i]=makeDeck().filter(c=>!c.joker).map(c=>c.id).filter(id=>!playedIds.includes(id));
+      }
+    }
+    return;
+  }
+
+  for(const i of [1,2]){
+    if(!G.cpuBlindInferenceActive[i]||G.cpuBlindKnowledge[i])continue;
+
+    G.cpuBlindRankHistory[i]=G.cpuBlindRankHistory[i]||[];
+    G.cpuBlindRankHistory[i].push([...playedIds]);
+
+    // ブラインドカードは同一セットの全ゲームで場に出ない。
+    // したがって、どこかのゲームで一度でも出た「数字＋スート」のカードは候補から除外できる。
+    const appearedAcrossSet=new Set(G.cpuBlindRankHistory[i].flat());
+
+    let candidates=(G.cpuBlindCandidateIds[i]||makeDeck().filter(c=>!c.joker).map(c=>c.id))
+      .filter(id=>!appearedAcrossSet.has(id));
+
+    // 現ゲームでCPU自身が所持していたカードもブラインドではない。
+    // 交換で渡した／受け取ったカードも knownOwnedCardIds に含まれる。
+    const currentKnownNotBlind=new Set([
+      ...(G.players[i].initialHandIds||[]),
+      ...(G.players[i].knownOwnedCardIds||[]),
+      ...(G.playedCardIds||[])
+    ]);
+    candidates=candidates.filter(id=>!currentKnownNotBlind.has(id));
+
+    G.cpuBlindCandidateIds[i]=candidates;
+
+    // 数字＋スートまで正確に1枚へ絞れた時点でブラインド確定。
+    if(candidates.length===1){
+      G.cpuBlindKnowledge[i]=candidates[0];
+      G.cpuBlindInferenceActive[i]=false;
+      G.cpuBlindCandidateIds[i]=null;
+      G.cpuBlindRankHistory[i]=[];
+    }
+  }
+}
+
+async function finishGame(forcedOrder=null,coup=false){
+  if(arguments[1]===true&&$('#effectOverlay')?.classList.contains('show')){
+    await sleep(950);
+  }
+
+  // 合法上がり→未上がり→反則上がりの順で最終順位を作る。
+  // 途中で反則上がりしたプレイヤーは最後（貧民）に固定される。
+  G.resultPending=true;G.resultModalShown=false;G.over=true;const valid=G.finishers.filter(x=>!x.foul).map(x=>x.i);const remaining=G.players.map((p,i)=>({p,i})).filter(x=>!x.p.finished).map(x=>x.i);const fouls=G.finishers.filter(x=>x.foul).map(x=>x.i);
+  let order=forcedOrder?[...forcedOrder]:[...valid,...remaining,...fouls];order=[...new Set(order)];while(order.length<3)for(let i=0;i<3;i++)if(!order.includes(i))order.push(i);
+  const points=G.gameInSet===4?[8,3,0]:[6,3,0];G.lastPoints=[0,0,0];order.forEach((id,k)=>{G.scores[id]+=points[k];G.lastPoints[id]=points[k]});
+  G.gameHistory=G.gameHistory||[];G.gameHistory.push({
+    setNo:G.setNo,
+    gameInSet:G.gameInSet,
+    points:[...G.lastPoints],
+    order:[...order],
+    coup:!!coup,
+    richFoulCoup:!!G.richFoulCoup,
+    cpuMode:CPU_MODE,
+    foulNames:G.finishers.filter(x=>x.foul).map(x=>playerLabel(x.i)),
+    coupName:coup?playerLabel(order[2]):null
+  });
+  // 盤面の階級表示はこの時点では変更しない。
+  // 「次のゲーム／次のセット」で setupGame(true) が呼ばれた時に、直前順位から次ゲーム用の階級を反映する。
+  // CPUのセット内ブラインド記憶を更新する。
+  // 貧民は第1ゲームで直接特定、富豪/平民は既出カードを数字＋スートまでゲーム間で照合して推定する。
+  updateBlindInferenceAtGameEnd(order);
+  CPU_MODE_LOCKED=false;
+  G.lastOrder=order;addLog(`順位：1位 ${playerLabel(order[0])}、2位 ${playerLabel(order[1])}、3位 ${playerLabel(order[2])}`);render();
+  // 決着直後は最後の場札を確認できるよう、結果表の表示を少し遅らせる。
+  await sleep(1200);
+  showResult(order)
+}
+// CPUの記憶：自分がゲーム中に持っていたカード、交換で渡したカードを含む既知の所有履歴、
+// そして誰がどのカードを出したかをゲーム中は保持する。
+// ブラインド以外のカードID情報はゲーム終了ごとに破棄する。
+// 第1ゲームで貧民になったCPUはブラインドを直接記憶。
+// 第1ゲームで富豪/平民になったCPUは、既出カードを数字＋スートまでセット内で保持し、2ゲーム目以降と照合して
+// ブラインドを1枚に特定できた時点で blindId として記憶する。新セット開始時には全て破棄する。
+function cpuMemory(i){
+  const p=G.players[i];
+  const playedBy=(G.playedByRecords||[]).map(r=>({player:r.player,cardIds:[...r.cardIds]}));
+  const strong=CPU_MODE==='strong';
+  return {
+    initial:new Set(p.initialHandIds||[]),
+    owned:new Set([...(p.initialHandIds||[]),...(p.knownOwnedCardIds||[]),...p.hand.map(c=>c.id)]),
+    current:new Set(p.hand.map(c=>c.id)),
+    played:new Set((G.playedCardIds||[])),
+    playedBy,
+    blindId:strong?(G.blind&&G.blind.id):((G.cpuBlindKnowledge||[])[i]||null),
+    blindRankHistory:[...(((G.cpuBlindRankHistory||[])[i])||[])].map(x=>[...(x||[])]),
+    blindCandidates:strong?[]:((G.cpuBlindCandidateIds||[])[i]||[]).slice(),
+    perfect:strong,
+    perfectHands:strong?G.players.map(x=>new Set(x.hand.map(c=>c.id))):null
+  };
+}
+function cpuKnownOpponentHand(i,targetIndex){
+  // 通常モード用：相手の残り手札が全て特定済みのときだけ返す。
+  // 自分の current ではなく、既知の出札履歴・ブラインド・残枚数から一意に確定した場合に限定する。
+  if(CPU_MODE==='strong')return G.players[targetIndex].hand;
+  const mem=cpuMemory(i);
+  const target=G.players[targetIndex];
+  if(!target||target.finished)return [];
+
+  // まず、対象がこれまで出したカードを除外し、全デッキから「対象が持ち得るカード」を構成。
+  // 通常モードで完全特定できるのは、候補数が残枚数と一致する場合のみ。
+  const unavailable=new Set([...mem.current,...mem.played]);
+  if(mem.blindId)unavailable.add(mem.blindId);
+
+  // 自分が現在持っている札は対象の手札ではない。
+  for(const c of G.players[i].hand)unavailable.add(c.id);
+
+  const candidates=makeDeck().filter(c=>!unavailable.has(c.id));
+  if(candidates.length!==target.hand.length)return null;
+
+  // 候補が残枚数と一致した場合のみ「全て既知」とみなす。
+  return candidates;
+}
+
+
+function cpuCanUseFullResponseSearch(i){
+  if(CPU_MODE==='strong')return true;
+  if(CPU_MODE!=='normal')return false;
+  const active=G.players.map((p,j)=>({p,j})).filter(x=>!x.p.finished);
+  if(active.length!==2)return false;
+  const richIndex=G.players.findIndex(p=>p.role==='富豪');
+  if(richIndex<0||!G.players[richIndex].finished)return false;
+  const blindKnown=((G.cpuBlindKnowledge||[])[i]||null);
+  return !!blindKnown;
+}
+
+function cpuFullInfoHeadsUpDepth(i,groups){
+  // 1対1かつ完全情報の場合の第2段階探索深度。
+  // 6組以上:4手 / 5組:5手 / 4組:6手 / 3組以下:終局まで。
+  // 実際のゲームでJokerが既に出ている場合は、有限深度をさらに+1する。
+  const active=G.players.filter(p=>!p.finished).length;
+  if(active!==2||!cpuCanUseFullResponseSearch(i))return null;
+
+  let depth=groups>=6?4:groups===5?5:groups===4?6:Infinity;
+  if(depth!==Infinity&&G.jokerPlayed)depth+=1;
+  return depth;
+}
+
+
+function cpuStrongModeOpponents(i){
+  if(CPU_MODE!=='strong')return null;
+  return G.players.map((p,j)=>({p,j})).filter(x=>x.j!==i&&!x.p.finished);
+}
+function cpuStrongModePlayerHasReply(target,a,revolutionBefore){
+  if(CPU_MODE!=='strong'||target<0||!G.players[target]||G.players[target].finished)return false;
+  const hand=G.players[target].hand;
+
+  // Joker単騎への返しは通常の強弱比較ではなく、スペード3だけが合法。
+  // 第1段階の確実上がり探索でも、この特殊ルールを必ず反映する。
+  if(
+    a.type==='single'&&
+    a.n===1&&
+    a.cards&&
+    a.cards.length===1&&
+    a.cards[0].joker
+  ){
+    return hand.some(c=>c.id==='S3');
+  }
+
+  // Use a local compatibility check mirroring current pile semantics.
+  const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
+  const canBeat=cand=>{
+    if(cand.type!==a.type||cand.n!==a.n)return false;
+    return strength(cand.rank,responseRev)>strength(a.rank,responseRev);
+  };
+  for(const cs of combinations(hand)){
+    for(const cand of analysesInState(cs,responseRev)){
+      if(canBeat(cand))return true;
+    }
+  }
+  return false;
+}
+
+function cpuCanProveNoOpponentStronger(i,card){
+  if(card.joker)return true;
+  if(CPU_MODE==='strong'){
+    return G.players.every((p,j)=>j===i||p.finished||!p.hand.some(c=>!c.joker&&strength(c.rank,G.revolution)>strength(card.rank,G.revolution)));
+  }
+  const mem=cpuMemory(i);
+  const all=makeDeck();
+  return all.filter(c=>strength(c.rank,G.revolution)>strength(card.rank,G.revolution))
+    .every(c=>mem.current.has(c.id)||mem.played.has(c.id)||mem.blindId===c.id);
+}
+function cpuSuitTwoMayBeOutside(i,suit){
+  const id=`${suit}15`;
+  if(CPU_MODE==='strong'){
+    if(G.blind&&G.blind.id===id)return false;
+    if((G.playedCardIds||[]).includes(id))return false;
+    if(G.players[i].hand.some(c=>c.id===id))return false;
+    return G.players.some((p,j)=>j!==i&&!p.finished&&p.hand.some(c=>c.id===id));
+  }
+  const mem=cpuMemory(i);
+  return !mem.current.has(id)&&!mem.played.has(id)&&mem.blindId!==id;
+}
+function cardById(id){return makeDeck().find(c=>c.id===id)}
+function cpuEightKnowledge(i,target){
+  if(CPU_MODE==='strong'){
+    const has=G.players[target]&&!G.players[target].finished&&G.players[target].hand.some(c=>!c.joker&&c.rank===8);
+    const targetPlayedEight=(G.playedByRecords||[]).some(r=>r.player===target&&r.cardIds.some(id=>{const c=cardById(id);return c&&!c.joker&&c.rank===8}));
+    return {certainlyHasEight:!!has,certainlyNoEight:!has,targetPlayedEight,uncertain:false};
+  }
+  const mem=cpuMemory(i);
+  const eights=makeDeck().filter(c=>!c.joker&&c.rank===8).map(c=>c.id);
+  const currentOwn=new Set(G.players[i].hand.map(c=>c.id));
+  const played=new Set(mem.played);
+  const accountedOutsideTarget=new Set([...currentOwn,...played]);
+  if(mem.blindId)accountedOutsideTarget.add(mem.blindId);
+  const unseenEights=eights.filter(id=>!accountedOutsideTarget.has(id));
+
+  // 未確認札は、現在の相手手札と、未特定ならブラインド1枚に存在し得る。
+  const otherSlots=G.players.reduce((sum,p,j)=>sum+(j!==i&&j!==target&&!p.finished?p.hand.length:0),0)+(mem.blindId?0:1);
+  const certainlyHasEight=unseenEights.length>otherSlots;
+  const certainlyNoEight=unseenEights.length===0;
+  const targetPlayedEight=mem.playedBy.some(r=>r.player===target&&r.cardIds.some(id=>{const c=cardById(id);return c&&!c.joker&&c.rank===8}));
+  return {certainlyHasEight,certainlyNoEight,targetPlayedEight,uncertain:!certainlyHasEight&&!certainlyNoEight};
+}
+
+
+function cpuRichThreeOrLessStrategyState(i){
+  const p=G.players[i];
+  if(!(p.role==='平民'||p.role==='貧民'))return null;
+  const rich=G.players.findIndex(x=>x.role==='富豪'&&!x.finished);
+  if(rich<0||G.players[rich].hand.length>3)return null;
+  const k=cpuEightKnowledge(i,rich);
+
+  // 第1条件：8を持たないことが確定、または既に8を出したことがある。
+  const avoidPair=k.certainlyNoEight||k.targetPlayedEight;
+
+  // 第2条件：8を確実に持つ、または不明かつまだ8を出していない。
+  const avoidWeakSingle=k.certainlyHasEight||(k.uncertain&&!k.targetPlayedEight);
+  return {rich,k,avoidPair,avoidWeakSingle};
+}
+
+function cpuMoveCertainlyUnanswerableByPlayer(i,a,target,revolutionBefore){
+  if(CPU_MODE==='strong')return !cpuStrongModePlayerHasReply(target,a,revolutionBefore);
+  // 指定した相手1人が、その手に合法に返せないことをCPUの既知情報だけで保守的に証明する。
+  if(target<0||G.players[target].finished)return true;
+  if(G.players[target].hand.length<a.n)return true;
+
+  const mem=cpuMemory(i);
+  const unavailable=new Set([...mem.current,...mem.played]);
+  if(mem.blindId)unavailable.add(mem.blindId);
+
+  // 他の未上がりプレイヤーの「枚数」だけでは対象者の具体札を除外できないため、
+  // unseen のどこかに返しが存在する限り「確定パス」とはしない。
+  const unseen=makeDeck().filter(c=>!unavailable.has(c.id));
+  const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
+  const unseenJoker=unseen.some(c=>c.joker);
+  const natural=unseen.filter(c=>!c.joker);
+
+  if(a.type==='single'){
+    if(a.cards.length===1&&a.cards[0].joker)return !unseen.some(c=>c.id==='S3');
+    if(unseenJoker)return false;
+    return !natural.some(c=>strength(c.rank,responseRev)>strength(a.rank,responseRev));
+  }
+  if(a.type==='group'){
+    const counts={};
+    for(const c of natural)counts[c.rank]=(counts[c.rank]||0)+1;
+    for(const [rkStr,count] of Object.entries(counts)){
+      const rk=Number(rkStr);
+      if(strength(rk,responseRev)<=strength(a.rank,responseRev))continue;
+      if(count+(unseenJoker?1:0)>=a.n)return false;
+    }
+    return true;
+  }
+  if(a.type==='straight'){
+    const bySuit={};
+    for(const [s] of SUITS)bySuit[s]=new Set();
+    for(const c of natural)bySuit[c.suit].add(c.rank);
+    for(const [s] of SUITS){
+      for(let start=3;start<=16-a.n+1;start++){
+        if(strength(start,responseRev)<=strength(a.rank,responseRev))continue;
+        const seq=Array.from({length:a.n},(_,k)=>start+k);
+        const missing=seq.filter(r=>!bySuit[s].has(r)).length;
+        if(missing<=(unseenJoker?1:0))return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+function isFoulFinishInState(a,revolutionBefore){
+  // 反則上がりは、カードを出す直前の革命状態で判定する。
+  // 通常時に3で革命して上がる、革命中に2で革命返しして上がるのは合法。
+  if(a.cards.some(c=>c.joker))return true;
+  if(a.type!=='straight'&&a.cards.some(c=>!c.joker&&c.rank===8))return true;
+  if(a.type==='single'&&a.cards.length===1&&a.cards[0].id==='S3')return true;
+  const foulRank=revolutionBefore?3:15;
+  return a.cards.some(c=>!c.joker&&c.rank===foulRank);
+}
+
+function moveClearsPileWithoutOpponent(a,revolution){
+  // 自分が出した直後に場が流れ、再び自分が親になれる手だけを中継手として扱う。
+  const eightCut=a.type!=='straight'&&a.rank===8;
+  const strongestStraight=isStrongestStraightMove(a,revolution);
+  return eightCut||strongestStraight;
+}
+function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore){
+  if(CPU_MODE==='strong'){
+    const opponents=cpuStrongModeOpponents(i)||[];
+    return opponents.every(o=>!cpuStrongModePlayerHasReply(o.j,a,revolutionBefore));
+  }
+  // 場が流れた直後にこの手を出したと仮定し、CPUの記憶から相手が絶対に返せないかを保守的に証明する。
+  // 自分の現手札・既出札・判明済みブラインドは相手が持ち得ない。交換で手放した過去の自札は除外しない。
+  const mem=cpuMemory(i);
+  const unavailable=new Set([...mem.current,...mem.played]);
+  if(mem.blindId)unavailable.add(mem.blindId);
+  const unseen=makeDeck().filter(c=>!unavailable.has(c.id));
+  const opponents=G.players.map((p,j)=>({p,j})).filter(x=>x.j!==i&&!x.p.finished);
+  if(!opponents.length)return true;
+  if(!opponents.some(x=>x.p.hand.length>=a.n))return true;
+
+  const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
+  const unseenJoker=unseen.some(c=>c.joker);
+  const natural=unseen.filter(c=>!c.joker);
+
+  if(a.type==='single'){
+    if(a.cards.length===1&&a.cards[0].joker){
+      return !unseen.some(c=>c.id==='S3');
+    }
+    if(unseenJoker)return false;
+    return !natural.some(c=>strength(c.rank,responseRev)>strength(a.rank,responseRev));
+  }
+
+  if(a.type==='group'){
+    const counts={};
+    for(const c of natural)counts[c.rank]=(counts[c.rank]||0)+1;
+    for(const [rkStr,count] of Object.entries(counts)){
+      const rk=Number(rkStr);
+      if(strength(rk,responseRev)<=strength(a.rank,responseRev))continue;
+      if(count+(unseenJoker?1:0)>=a.n)return false;
+    }
+    return true;
+  }
+
+  if(a.type==='straight'){
+    const bySuit={};
+    for(const [s] of SUITS)bySuit[s]=new Set();
+    for(const c of natural)bySuit[c.suit].add(c.rank);
+
+    // 革命中の最強3枚階段 Joker・3・4 が相手側に成立し得るなら、
+    // それより弱い3枚階段は「絶対に返せない」とは証明しない。
+    if(responseRev&&a.n===3&&unseenJoker){
+      for(const [s] of SUITS){
+        if(bySuit[s].has(3)&&bySuit[s].has(4)){
+          const specialPower=strength(2,true);
+          if(specialPower>strength(a.rank,true))return false;
+        }
+      }
+    }
+
+    for(const [s] of SUITS){
+      for(let start=3;start<=16-a.n+1;start++){
+        if(strength(start,responseRev)<=strength(a.rank,responseRev))continue;
+        const seq=Array.from({length:a.n},(_,k)=>start+k);
+        const missing=seq.filter(r=>!bySuit[s].has(r)).length;
+        if(missing<= (unseenJoker?1:0))return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+function hasTwoOrMorePlayersWhoHaveNeverPlayed(){
+  const records=G.playedByRecords||[];
+  let count=0;
+  for(const i of [0,1,2]){
+    const played=records.some(r=>r.player===i&&r.cardIds&&r.cardIds.length>0);
+    if(!played)count++;
+  }
+  return count>=2;
+}
+
+function certainRunOutMinSteps(i,cards,revolution,memo=new Map()){
+  if(!cards.length)return 0;
+
+  // 残り全部を1手で合法かつ反則上がりせず出せるなら最短は1手。
+  if(analysesInState(cards,revolution).some(a=>!isFoulFinishInState(a,revolution)))return 1;
+
+  // 未出札者が2人以上いる序盤では再帰探索を止める。
+  if(hasTwoOrMorePlayersWhoHaveNeverPlayed())return Infinity;
+
+  const key=`${i}:${revolution?'R':'N'}:${cards.map(c=>c.id).sort().join(',')}`;
+  if(memo.has(key))return memo.get(key);
+  // 循環防止。探索中の同一状態は失敗扱い。
+  memo.set(key,Infinity);
+
+  let best=Infinity;
+  for(const cs of combinations(cards)){
+    if(cs.length===cards.length)continue;
+    for(const a of analysesInState(cs,revolution)){
+      const clears=moveClearsPileWithoutOpponent(a,revolution);
+      const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution);
+      if(!clears&&!unanswerable)continue;
+      const used=new Set(a.cards.map(c=>c.id));
+      const remaining=cards.filter(c=>!used.has(c.id));
+      const nextRevolution=a.revolution?!revolution:revolution;
+      const rest=certainRunOutMinSteps(i,remaining,nextRevolution,memo);
+      if(Number.isFinite(rest))best=Math.min(best,1+rest);
+    }
+  }
+  memo.set(key,best);
+  return best;
+}
+function canCertainlyRunOutWithoutOpponent(i,cards,revolution,memo=new Map()){
+  return Number.isFinite(certainRunOutMinSteps(i,cards,revolution,memo));
+}
+
+function cpuCanCertainlyFinishAfterSingleJoker(i,move){
+  if(!(move&&move.type==='single'&&move.cards.length===1&&move.cards[0].joker))return false;
+  const p=G.players[i];
+  const used=new Set(move.cards.map(c=>c.id));
+  const remaining=p.hand.filter(c=>!used.has(c.id));
+  if(!remaining.length)return false; // ジョーカー上がり自体は反則。
+
+  // スペ3返しの可否は別の絶対条件で制御する。
+  // ジョーカー後に場が流れたものとして、相手へ手番を渡さず残り札を出し切れる連続手順を判定する。
+  return canCertainlyRunOutWithoutOpponent(i,remaining,G.revolution);
+}
+function cpuCanCertainlyFinishAfterSp3Return(i,move){
+  if(!(move&&move.type==='single'&&move.cards.length===1&&move.cards[0].id==='S3'))return false;
+  const p=G.players[i];
+  const remaining=p.hand.filter(c=>c.id!=='S3');
+  if(!remaining.length)return false; // スペ3単品上がり自体は反則。
+  // スペ3返し後、自分が親のまま8切り等を挟み、相手へ手番を渡さず上がり切れるかを判定する。
+  return canCertainlyRunOutWithoutOpponent(i,remaining,G.revolution);
+}
+
+
+function cpuCertainSearchDepthForState(cards,revolution,applyJokerBonus=true){
+  const groups=optimalHandPartition(cards,revolution).groupCount;
+
+  let depth;
+  if(CPU_MODE==='strong'){
+    // 最強: 6組以上=2手、5組=4手、4組=4手、3組以下=終局まで
+    if(groups>=6)depth=2;
+    else if(groups===5)depth=4;
+    else if(groups===4)depth=4;
+    else depth=Infinity;
+  }else{
+    // 通常: 5組以上=2手、4組=3手、3組=3手、2組以下=終局まで
+    if(groups>=5)depth=2;
+    else if(groups===4)depth=3;
+    else if(groups===3)depth=3;
+    else depth=Infinity;
+  }
+
+  // 実際のゲームでJokerが一度でも出た後に開始する探索だけ、有限深度を+1する。
+  // 探索途中の仮想局面でJokerが出ても、途中から深度は増やさない。
+  if(applyJokerBonus&&depth!==Infinity&&G.jokerPlayed)depth+=1;
+
+  return depth;
+}
+
+function createCertainSearchBudget(){
+  return {count:0,limit:20000,cutoff:false};
+}
+
+function countCertainState(budget){
+  if(!budget)return true;
+  budget.count++;
+  if(budget.count>budget.limit){
+    budget.cutoff=true;
+    return false;
+  }
+  return true;
+}
+
+
+function certainMoveSearchPower(a,revolution){
+  const jokerBonus=a.cards.some(c=>c.joker)?1000:0;
+  return jokerBonus+strength(a.rank,revolution)*10+a.n;
+}
+function certainCardSetKey(cards){
+  return cards.map(c=>c.id).sort().join('|');
+}
+function secondWeakestThenUpThenWeakest(items,powerFn){
+  if(items.length<=1)return [...items];
+  const ordered=[...items].sort((a,b)=>
+    powerFn(a)-powerFn(b) ||
+    String(a.key||'').localeCompare(String(b.key||''))
+  );
+  return [...ordered.slice(1),ordered[0]];
+}
+function orderCertainMovesForHand(hand,moves,revolution){
+  if(!moves||!moves.length)return [];
+  const part=optimalHandPartition(hand,revolution);
+
+  // 最適分割の各「まとまり」。単品も1組として扱う。
+  const groups=[];
+  for(const a of part.bundles){
+    groups.push({
+      key:certainCardSetKey(a.cards),
+      power:certainMoveSearchPower(a,revolution),
+      move:a
+    });
+  }
+  for(const c of part.singles){
+    const a={type:'single',n:1,rank:c.joker?16:c.rank,cards:[c]};
+    groups.push({
+      key:certainCardSetKey([c]),
+      power:certainMoveSearchPower(a,revolution),
+      move:a
+    });
+  }
+
+  // 8単品・8ペアは、通常の順序から外して「最弱のまとまりの直前」に回す。
+  // 8トリオ以上にはこの特別扱いを適用しない。
+  const isDeferredEightGroup=g=>
+    g.move &&
+    !g.move.cards.some(c=>c.joker) &&
+    g.move.rank===8 &&
+    (
+      g.move.type==='single' ||
+      (g.move.type==='group'&&g.move.n===2)
+    );
+
+  const orderedByPower=[...groups].sort((a,b)=>
+    a.power-b.power ||
+    String(a.key||'').localeCompare(String(b.key||''))
+  );
+
+  let groupOrder;
+  if(orderedByPower.length<=1){
+    groupOrder=[...orderedByPower];
+  }else{
+    const weakest=orderedByPower[0];
+    const middleAndStrong=orderedByPower.slice(1);
+
+    // 8単品・8ペアはここから一旦除外。
+    const deferredEights=middleAndStrong.filter(isDeferredEightGroup);
+    const normalMiddle=middleAndStrong.filter(g=>!isDeferredEightGroup(g));
+
+    // 最弱自身が8単品/8ペアの場合も、最弱として最後に残す。
+    groupOrder=[
+      ...normalMiddle,
+      ...deferredEights,
+      weakest
+    ];
+  }
+
+  const groupPos=new Map(groupOrder.map((g,idx)=>[g.key,idx]));
+
+  const preserving=[];
+  const breaking=[];
+  for(const a of moves){
+    const k=certainCardSetKey(a.cards);
+    if(groupPos.has(k))preserving.push(a);
+    else breaking.push(a);
+  }
+
+  preserving.sort((a,b)=>
+    groupPos.get(certainCardSetKey(a.cards))-groupPos.get(certainCardSetKey(b.cards)) ||
+    certainMoveSearchPower(a,revolution)-certainMoveSearchPower(b,revolution) ||
+    moveAnalysisKey(a).localeCompare(moveAnalysisKey(b))
+  );
+
+  // まとまりを崩す候補も通常は「2番目に弱い候補→強い候補→最弱」の順。
+  let breakingFiltered=[...breaking];
+
+  // 空場では、8ペアを崩して8を1枚だけ出す入口は探索しない。
+  if(!G.pile){
+    const eightPairIds=new Set(
+      part.bundles
+        .filter(a=>
+          a.type==='group'&&
+          a.n===2&&
+          a.rank===8&&
+          !a.cards.some(c=>c.joker)
+        )
+        .flatMap(a=>a.cards.map(c=>c.id))
+    );
+
+    if(eightPairIds.size){
+      breakingFiltered=breakingFiltered.filter(a=>
+        !(
+          a.type==='single'&&
+          a.cards.length===1&&
+          !a.cards[0].joker&&
+          a.cards[0].rank===8&&
+          eightPairIds.has(a.cards[0].id)
+        )
+      );
+    }
+  }
+
+  const breakingWrapped=breakingFiltered.map(a=>({
+    a,
+    key:moveAnalysisKey(a),
+    power:certainMoveSearchPower(a,revolution),
+    deferredEight:
+      !a.cards.some(c=>c.joker)&&
+      a.rank===8&&
+      (
+        a.type==='single' ||
+        (a.type==='group'&&a.n===2)
+      )
+  }));
+
+  const breakingByPower=[...breakingWrapped].sort((x,y)=>
+    x.power-y.power ||
+    String(x.key||'').localeCompare(String(y.key||''))
+  );
+
+  let breakingOrdered=[];
+  if(breakingByPower.length===1){
+    breakingOrdered=[breakingByPower[0].a];
+  }else if(breakingByPower.length>1){
+    const weakest=breakingByPower[0];
+    const rest=breakingByPower.slice(1);
+    const deferred=rest.filter(x=>x.deferredEight);
+    const normal=rest.filter(x=>!x.deferredEight);
+    breakingOrdered=[
+      ...normal,
+      ...deferred,
+      weakest
+    ].map(x=>x.a);
+  }
+
+  return [...preserving,...breakingOrdered];
+}
+// 後方互換用。探索箇所では可能な限り orderCertainMovesForHand を使う。
+
+function cpuMoveCertainFinishStepsBounded(i,a,memo=new Map(),budget=null){
+  // 通常・最強共通の第1段階探索では、探索開始前にすでに上がっている相手は
+  // もともと探索対象外であり、確実上がり失敗の理由にはしない。
+  const p=G.players[i];
+  const used=new Set(a.cards.map(c=>c.id));
+  const remaining=p.hand.filter(c=>!used.has(c.id));
+  if(!remaining.length)return isFoulFinish(a)?Infinity:1;
+
+  const nextRev=a.revolution?!G.revolution:G.revolution;
+  const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+  if(!keepsControl)return Infinity;
+
+  const depthLeft=cpuCertainSearchDepthForState(remaining,nextRev,true);
+  const rest=certainRunOutMinStepsBounded(i,remaining,nextRev,memo,depthLeft,budget);
+  return Number.isFinite(rest)?1+rest:Infinity;
+}
+
+function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLeft=null,budget=null){
+  if(!cards.length)return 0;
+  if(!countCertainState(budget))return Infinity;
+
+  const dynamicDepth=cpuCertainSearchDepthForState(cards,revolution,false);
+  if(depthLeft==null)depthLeft=dynamicDepth;
+  else if(depthLeft!==Infinity){
+    if(dynamicDepth===Infinity)depthLeft=Infinity;
+    else depthLeft=Math.max(depthLeft,dynamicDepth);
+  }
+
+  if(depthLeft!==Infinity&&depthLeft<=0)return Infinity;
+
+  // 全手札を一度に合法上がりできるなら即確定。
+  const finishNow=orderCertainMovesForHand(
+    cards,
+    analysesInState(cards,revolution).filter(a=>!isFoulFinishInState(a,revolution)),
+    revolution
+  );
+  if(finishNow.length)return 1;
+
+  if(hasTwoOrMorePlayersWhoHaveNeverPlayed())return Infinity;
+
+  const key=`B:${depthLeft===Infinity?'INF':depthLeft}:${i}:${revolution?'R':'N'}:${cards.map(c=>c.id).sort().join(',')}`;
+  if(memo.has(key))return memo.get(key);
+  memo.set(key,Infinity);
+
+  // ビットマスク順ではなく、現在出せる候補をすべて集めて強い順に探索する。
+  const candidates=[];
+  const seen=new Set();
+  for(const cs of combinations(cards)){
+    if(cs.length===cards.length)continue;
+    for(const a of analysesInState(cs,revolution)){
+      const k=moveAnalysisKey(a);
+      if(seen.has(k))continue;
+      seen.add(k);
+      const clears=moveClearsPileWithoutOpponent(a,revolution);
+      const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution);
+      if(clears||unanswerable)candidates.push(a);
+    }
+  }
+
+  for(const a of orderCertainMovesForHand(cards,candidates,revolution)){
+    if(budget&&budget.cutoff)break;
+
+    const used=new Set(a.cards.map(c=>c.id));
+    const remaining=cards.filter(c=>!used.has(c.id));
+    const nextRevolution=a.revolution?!revolution:revolution;
+    const nextDepth=depthLeft===Infinity?Infinity:Math.max(0,depthLeft-1);
+    const rest=certainRunOutMinStepsBounded(i,remaining,nextRevolution,memo,nextDepth,budget);
+
+    // 一つでも確実ルートが見つかったら、手数比較をせず即終了。
+    if(Number.isFinite(rest)){
+      const result=1+rest;
+      memo.set(key,result);
+      return result;
+    }
+  }
+
+  // 局面上限で打ち切られた枝は「確実」と認定しない。
+  if(budget&&budget.cutoff)return Infinity;
+
+  memo.set(key,Infinity);
+  return Infinity;
+}
+
+function cloneCertainSimFromGame(){
+  return {
+    players:G.players.map(p=>({
+      hand:p.hand.map(c=>({...c})),
+      role:p.role,
+      passed:!!p.passed,
+      finished:!!p.finished,
+      foul:!!p.foul
+    })),
+    pile:G.pile?{
+      ...G.pile,
+      cards:(G.pile.cards||[]).map(c=>({...c})),
+      suits:[...(G.pile.suits||[])],
+      sequence:G.pile.sequence?[...G.pile.sequence]:undefined
+    }:null,
+    lead:G.lead,
+    turn:G.turn,
+    revolution:!!G.revolution,
+    lock:G.lock,
+        commonPoorRevolutionLock:!!G.commonPoorRevolutionLock,
+    commonPoorNoLeadRevolutionOnce:!!G.commonPoorNoLeadRevolutionOnce,
+    finishedAtStart:G.players.map(p=>!!p.finished)
+  };
+}
+function certainSimNextActive(s,from){
+  for(let k=1;k<=3;k++){
+    const j=(from+k)%3,p=s.players[j];
+    if(!p.finished&&(!s.pile||!p.passed))return j;
+  }
+  return from;
+}
+function certainSimSuitSignature(a){
+  if(a.type==='straight')return a.suits[0];
+  if(a.type==='single')return a.suits[0]||null;
+  return a.suits.join('');
+}
+function certainSimCompatible(s,a){
+  const p=s.pile;
+  if(a.revolutionOnlyLowJokerStraight&&!s.revolution)return false;
+  if(!p)return true;
+  
+  if(a.revolution){
+    const actor=s.players[s.turn];
+    const richIndex=s.players.findIndex(x=>x.role==='富豪'&&!x.finished);
+    const commonPoor=actor&&(actor.role==='平民'||actor.role==='貧民')&&richIndex>=0;
+    if(commonPoor&&(s.commonPoorRevolutionLock||(!s.pile&&s.commonPoorNoLeadRevolutionOnce)))return false;
+  }
+  if(p.type!==a.type||p.n!==a.n)return false;
+  if(p.type==='single'&&p.rank===16)return a.cards.length===1&&a.cards[0].id==='S3';
+  if(strength(a.rank,s.revolution)<=strength(p.rank,s.revolution))return false;
+
+  if(s.lock){
+    const natural=a.cards.filter(c=>!c.joker).map(c=>c.suit).sort();
+    const jc=a.cards.filter(c=>c.joker).length;
+    if(a.type==='single'){
+      if(jc===0&&natural[0]!==s.lock)return false;
+    }else if(a.type==='straight'){
+      if(natural.some(x=>x!==s.lock))return false;
+    }else{
+      const req=s.lock.split('').sort(),remaining=[...req];
+      for(const suit of natural){
+        const k=remaining.indexOf(suit);
+        if(k<0)return false;
+        remaining.splice(k,1);
+      }
+      if(remaining.length>jc)return false;
+    }
+  }
+  return true;
+}
+function certainSimLegalMoves(s,playerIndex){
+  const p=s.players[playerIndex];
+  if(p.finished||(s.pile&&p.passed))return [];
+  const out=[],seen=new Set();
+  for(const cs of combinations(p.hand)){
+    for(const a of analysesInState(cs,s.revolution)){
+      if(!certainSimCompatible(s,a))continue;
+      const k=moveAnalysisKey(a);
+      if(seen.has(k))continue;
+      seen.add(k);
+      // 反則上がりになる最終手は確実上がりルートでは採用しない。
+      if(p.hand.length===a.n&&isFoulFinishInState(a,s.revolution))continue;
+      out.push(a);
+    }
+  }
+  return orderCertainMovesForHand(p.hand,out,s.revolution);
+}
+function certainSimClone(s){
+  return {
+    players:s.players.map(p=>({
+      hand:p.hand.map(c=>({...c})),
+      role:p.role,
+      passed:p.passed,finished:p.finished,foul:p.foul
+    })),
+    pile:s.pile?{
+      ...s.pile,
+      cards:(s.pile.cards||[]).map(c=>({...c})),
+      suits:[...(s.pile.suits||[])],
+      sequence:s.pile.sequence?[...s.pile.sequence]:undefined
+    }:null,
+    lead:s.lead,turn:s.turn,revolution:s.revolution,lock:s.lock,
+        commonPoorRevolutionLock:s.commonPoorRevolutionLock,
+    commonPoorNoLeadRevolutionOnce:s.commonPoorNoLeadRevolutionOnce,
+    finishedAtStart:[...(s.finishedAtStart||s.players.map(p=>!!p.finished))]
+  };
+}
+function certainSimClearPile(s,starter){
+  const commonPoorJustRevolted=!!s.commonPoorRevolutionLock;
+  s.pile=null;s.lead=null;s.lock=null;
+  s.commonPoorRevolutionLock=false;
+  s.commonPoorNoLeadRevolutionOnce=commonPoorJustRevolted;
+  s.players.forEach(p=>p.passed=false);
+  s.turn=s.players[starter].finished?certainSimNextActive(s,starter):starter;
+}
+function certainSimApplyPass(s,i){
+  const ns=certainSimClone(s);
+  ns.players[i].passed=true;
+  const others=ns.players.map((p,j)=>({p,j}))
+    .filter(x=>x.j!==ns.lead&&!x.p.finished);
+  if(ns.pile&&others.length&&others.every(x=>x.p.passed)){
+    certainSimClearPile(ns,ns.lead);
+  }else{
+    ns.turn=certainSimNextActive(ns,i);
+  }
+  return ns;
+}
+function certainSimApplyMove(s,i,a){
+  const ns=certainSimClone(s);
+  const p=ns.players[i];
+  if(ns.commonPoorNoLeadRevolutionOnce)ns.commonPoorNoLeadRevolutionOnce=false;
+  const prev=ns.pile;
+  const prevSig=prev?certainSimSuitSignature(prev):null;
+  const used=new Set(a.cards.map(c=>c.id));
+  p.hand=p.hand.filter(c=>!used.has(c.id));
+  p.passed=false;
+  ns.pile={...a,cards:a.cards.map(c=>({...c})),suits:[...(a.suits||[])],sequence:a.sequence?[...a.sequence]:undefined};
+  ns.lead=i;
+
+  if(prev&&!a.cards.some(c=>c.joker)){
+    const newSig=certainSimSuitSignature(a);
+    if(prevSig&&newSig&&prevSig===newSig)ns.lock=newSig;
+  }
+  const sp3=prev&&prev.type==='single'&&prev.rank===16&&a.type==='single'&&a.cards[0].id==='S3';
+  const eight=a.type!=='straight'&&a.rank===8;
+  const strongestStraight=isStrongestStraightMove(a,ns.revolution);
+
+  if(a.revolution){
+    const richIndexBefore=ns.players.findIndex(x=>x.role==='富豪'&&!x.finished);
+    if(richIndexBefore>=0&&(p.role==='平民'||p.role==='貧民'))ns.commonPoorRevolutionLock=true;
+    ns.revolution=!ns.revolution;
+  }
+
+  if(!p.hand.length){
+    p.finished=true;
+    p.foul=isFoulFinishInState(a,s.revolution);
+  }
+
+  if(sp3||eight||strongestStraight){
+    certainSimClearPile(ns,i);
+  }else{
+    const others=ns.players.map((x,j)=>({x,j}))
+      .filter(o=>o.j!==ns.lead&&!o.x.finished);
+    if(others.length&&others.every(o=>o.x.passed)){
+      certainSimClearPile(ns,ns.lead);
+    }else{
+      ns.turn=certainSimNextActive(ns,i);
+    }
+  }
+  return ns;
+}
+function certainSimKey(s,root,rootDepth){
+  return [
+    root,rootDepth===Infinity?'I':rootDepth,s.turn,s.lead??'N',
+    s.revolution?'R':'N',s.lock||'-',
+    s.commonPoorRevolutionLock?'C':'-',s.commonPoorNoLeadRevolutionOnce?'N':'-',
+    (s.finishedAtStart||[]).map(x=>x?'1':'0').join(''),
+    s.pile?`${s.pile.type}:${s.pile.n}:${s.pile.rank}:${certainCardSetKey(s.pile.cards)}`:'EMPTY',
+    ...s.players.map(p=>`${p.finished?'F':'A'}${p.passed?'P':'-'}:${p.hand.map(c=>c.id).sort().join(',')}`)
+  ].join('/');
+}
+function certainFullResponseWin(s,root,rootDepth,budget,memo){
+  if(!countCertainState(budget))return false;
+  if(s.players[root].finished)return !s.players[root].foul;
+  // 相手が先に上がった枝は「自分が確実に上がる」保証を失う。
+  if(s.players.some((p,j)=>
+    j!==root &&
+    p.finished &&
+    !(s.finishedAtStart&&s.finishedAtStart[j])
+  ))return false;
+  if(rootDepth!==Infinity&&rootDepth<=0)return false;
+
+  const key=certainSimKey(s,root,rootDepth);
+  if(memo.has(key))return memo.get(key);
+
+  const i=s.turn;
+  const moves=certainSimLegalMoves(s,i);
+  const canPass=!!s.pile;
+
+  if(i===root){
+    // 自分は、まとまりを崩さない候補から順に一つでも勝てる手を探す。
+    for(const a of moves){
+      if(budget&&budget.cutoff)break;
+      const ns=certainSimApplyMove(s,i,a);
+      const nextDepth=rootDepth===Infinity?Infinity:rootDepth-1;
+      if(certainFullResponseWin(ns,root,nextDepth,budget,memo)){
+        memo.set(key,true);return true;
+      }
+    }
+    if(canPass&&!budget?.cutoff){
+      const ns=certainSimApplyPass(s,i);
+      if(certainFullResponseWin(ns,root,rootDepth,budget,memo)){
+        memo.set(key,true);return true;
+      }
+    }
+    memo.set(key,false);return false;
+  }
+
+  // 相手は敵対的に「合法な全応手」を選び得る。全分岐で自分が勝てる必要がある。
+  const actions=[...moves];
+  if(canPass)actions.push(null);
+  if(!actions.length){
+    memo.set(key,false);return false;
+  }
+  for(const a of actions){
+    if(budget&&budget.cutoff){memo.set(key,false);return false}
+    const ns=a?certainSimApplyMove(s,i,a):certainSimApplyPass(s,i);
+    if(!certainFullResponseWin(ns,root,rootDepth,budget,memo)){
+      memo.set(key,false);return false;
+    }
+  }
+  memo.set(key,true);return true;
+}
+
+// 残り2組の「確実敗北」探索専用。
+// 確実勝利探索とは逆に、最弱のまとまりから入口を調べる。
+function orderCertainLossMovesForHand(hand,moves,revolution){
+  if(!moves||!moves.length)return [];
+  const part=optimalHandPartition(hand,revolution);
+
+  const groupPower=new Map();
+  for(const a of part.bundles){
+    groupPower.set(certainCardSetKey(a.cards),certainMoveSearchPower(a,revolution));
+  }
+  for(const c of part.singles){
+    const a={type:'single',n:1,rank:c.joker?16:c.rank,cards:[c]};
+    groupPower.set(certainCardSetKey([c]),certainMoveSearchPower(a,revolution));
+  }
+
+  return [...moves]
+    .map((a,idx)=>{
+      const k=certainCardSetKey(a.cards);
+      return {
+        a,idx,
+        // 現在の最適分割そのものに含まれるまとまりは、そのまとまりの強さを使う。
+        // 分割を崩す入口は、その手自体の強さで並べる。
+        power:groupPower.has(k)?groupPower.get(k):certainMoveSearchPower(a,revolution),
+        preserving:groupPower.has(k)?0:1
+      };
+    })
+    .sort((x,y)=>
+      (x.power-y.power)||
+      (x.preserving-y.preserving)||
+      moveAnalysisKey(x.a).localeCompare(moveAnalysisKey(y.a))||
+      (x.idx-y.idx)
+    )
+    .map(x=>x.a);
+}
+
+// root が「相手に勝ちを強制される」かを完全情報で判定する。
+// root の手番では、1つでも敗北を回避できる合法行動があれば「確実敗北」ではない。
+// 相手の手番では、1つでも root の敗北を強制できる合法行動があれば「確実敗北」。
+function certainFullResponseForcedLoss(s,root,budget,memo){
+  if(!countCertainState(budget))return false;
+
+  // 自分が先に合法上がりできた枝は敗北ではない。
+  if(s.players[root].finished)return !!s.players[root].foul;
+
+  // 探索開始時には未上がりだった相手が先に上がった時点で、root はその相手に敗北。
+  if(s.players.some((p,j)=>
+    j!==root &&
+    p.finished &&
+    !(s.finishedAtStart&&s.finishedAtStart[j])
+  ))return true;
+
+  const key='L:'+certainSimKey(s,root,Infinity);
+  if(memo.has(key))return memo.get(key);
+
+  const i=s.turn;
+  const moves=certainSimLegalMoves(s,i);
+  const canPass=!!s.pile;
+  const actions=[...moves];
+  if(canPass)actions.push(null);
+
+  // 行動不能は「確実敗北」とは証明しない。
+  if(!actions.length){
+    memo.set(key,false);
+    return false;
+  }
+
+  if(i===root){
+    // 自分は敗北を回避する最善手を選ぶ。
+    // 1つでも安全な枝があれば、この局面は確実敗北ではない。
+    memo.set(key,true); // 再帰循環時は保守的に「敗北候補」とする
+    for(const a of actions){
+      if(budget&&budget.cutoff){memo.set(key,false);return false}
+      const ns=a?certainSimApplyMove(s,i,a):certainSimApplyPass(s,i);
+      if(!certainFullResponseForcedLoss(ns,root,budget,memo)){
+        memo.set(key,false);
+        return false;
+      }
+    }
+    memo.set(key,true);
+    return true;
+  }
+
+  // 相手は root を負かす最善応手を選ぶ。
+  // 1つでも敗北を強制できる枝があれば、そのルートは確実敗北。
+  memo.set(key,false);
+  for(const a of actions){
+    if(budget&&budget.cutoff){memo.set(key,false);return false}
+    const ns=a?certainSimApplyMove(s,i,a):certainSimApplyPass(s,i);
+    if(certainFullResponseForcedLoss(ns,root,budget,memo)){
+      memo.set(key,true);
+      return true;
+    }
+  }
+  memo.set(key,false);
+  return false;
+}
+
+function cpuMoveCertainForcedLossWithResponses(i,a,budget=null){
+  // 相手手札を透視せずに「確実敗北」と断定できるよう、
+  // 完全情報探索が許可されている局面だけで使用する。
+  if(!cpuCanUseFullResponseSearch(i))return false;
+
+  const s=cloneCertainSimFromGame();
+  if(s.turn!==i)return false;
+
+  const first=certainSimApplyMove(s,i,a);
+
+  // この入口で自分が合法上がりするなら敗北ではない。
+  if(first.players[i].finished)return !!first.players[i].foul;
+
+  // 残り2組は終局まで探索する。
+  return certainFullResponseForcedLoss(first,i,budget||createCertainSearchBudget(),new Map());
+}
+
+function cpuMoveCertainFinishWithResponses(i,a,budget=null,depthOverride=null){
+  // 最強モード、または通常モードでも「富豪が先に上がった1対1＋ブラインド特定済み」の
+  // 完全情報局面では第2段階探索を行う。
+  if(!cpuCanUseFullResponseSearch(i))return false;
+  const s=cloneCertainSimFromGame();
+  if(s.turn!==i)return false;
+
+  const rootHand=s.players[i].hand;
+  const groups=optimalHandPartition(rootHand,s.revolution).groupCount;
+  let depth=depthOverride;
+  if(depth==null){
+    const headsUpFullInfoDepth=cpuFullInfoHeadsUpDepth(i,groups);
+    if(headsUpFullInfoDepth!==null){
+      depth=headsUpFullInfoDepth;
+    }else{
+      // 3人局面などは従来の最強モード相当の深度。
+      depth=(groups>=6?2:groups===5?4:groups===4?4:Infinity);
+    }
+  }
+
+  const first=certainSimApplyMove(s,i,a);
+  if(first.players[i].finished)return !first.players[i].foul;
+  const remainingDepth=depth===Infinity?Infinity:Math.max(0,depth-1);
+  return certainFullResponseWin(first,i,remainingDepth,budget,new Map());
+}
+
+function cpuMoveCertainFinishSteps(i,a,memo=new Map()){
+  const p=G.players[i];
+  const used=new Set(a.cards.map(c=>c.id));
+  const remaining=p.hand.filter(c=>!used.has(c.id));
+  if(!remaining.length)return isFoulFinish(a)?Infinity:1;
+  const nextRev=a.revolution?!G.revolution:G.revolution;
+  const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+  if(!keepsControl)return Infinity;
+  const rest=certainRunOutMinSteps(i,remaining,nextRev,memo);
+  return Number.isFinite(rest)?1+rest:Infinity;
+}
+function cpuEightMoveThenNextFinish(i,a){
+  if(!(a&&(a.type==='single'||(a.type==='group'&&a.n===2))&&a.cards.some(c=>!c.joker&&c.rank===8)))return false;
+  const p=G.players[i],used=new Set(a.cards.map(c=>c.id));
+  const remaining=p.hand.filter(c=>!used.has(c.id));
+  if(!remaining.length)return false;
+  return analysesInState(remaining,G.revolution).some(x=>!isFoulFinishInState(x,G.revolution));
+}
+
+function cpuCanProveNoRevolutionReturn(i,move){
+  if(!move||!move.revolution)return false;
+  if(move.type==='group'&&move.n===4&&move.cards.some(c=>c.joker))return true;
+  if(move.n!==3)return false;
+  const mem=cpuMemory(i),nextRev=!G.revolution;
+  const unavailable=new Set([...mem.current,...mem.played]);
+  for(const c of move.cards)unavailable.add(c.id);
+  if(mem.blindId)unavailable.add(mem.blindId);
+  const unseen=makeDeck().filter(c=>!unavailable.has(c.id));
+
+  // 革命返しの探索は「ちょうど3枚」の組み合わせだけに限定する。
+  // 4枚以上の部分集合は生成しない。
+  for(let a=0;a<unseen.length-2;a++){
+    for(let b=a+1;b<unseen.length-1;b++){
+      for(let c=b+1;c<unseen.length;c++){
+        const cs=[unseen[a],unseen[b],unseen[c]];
+        for(const cand of analyses(cs)){
+          if(!cand.revolution||cand.n!==3)continue;
+          if(strength(cand.rank,nextRev)>strength(move.rank,nextRev))return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+function cpuRevolutionExceptionCertain(i,a){
+  if(!a.revolution||!cpuCanProveNoRevolutionReturn(i,a))return false;
+  const p=G.players[i],used=new Set(a.cards.map(c=>c.id));
+  const remaining=p.hand.filter(c=>!used.has(c.id));
+  if(!remaining.length)return !isFoulFinish(a);
+  return canCertainlyRunOutWithoutOpponent(i,remaining,!G.revolution);
+}
+function cpuPoorMayUseS3BeforeJoker(i){
+  const p=G.players[i];
+  return p.role==='貧民'&&p.exchangeGaveNonJoker===true;
+}
+
+
+async function runCpu(){
+  if(G.over||G.phase!=='playing'||G.turn===0)return;
+  const i=G.turn,p=G.players[i];
+  await sleep(450);
+  if(G.over||G.phase!=='playing'||G.turn!==i)return;
+
+  // 同じCPU手番に対する重複 runCpu() をここで遮断する。
+  // 1本目が探索・エフェクト待ち・playMove() 中なら、後から来た呼び出しは何もしない。
+  if(CPU_RUN_ACTIVE)return;
+  CPU_RUN_ACTIVE=true;
+
+  try{
+
+  // 空場ではそのCPUは必ず親。過去のpassed状態が残っていても強制解除する。
+  if(!G.pile){
+    p.passed=false;
+    G.lead=null;
+  }
+
+  if(G.pile&&p.passed){
+    if(!G.trickPassers)G.trickPassers=new Set();
+    G.trickPassers.add(i);
+    if(checkFlow()){
+      render();
+      setTimeout(runCpu,400);
+      return;
+    }
+    G.turn=nextActive(i);
+    render();
+    setTimeout(runCpu,100);
+    return;
+  }
+
+  const rawLegal=allLegal(p);
+  const nonFoulLegal=rawLegal.filter(a=>!(p.hand.length===a.n&&isFoulFinish(a))&&!moveLeavesOnlyFoulCards(p,a));
+  let legal=[...nonFoulLegal];
+
+  // 【最上位・絶対】残り手札が3組以下になった時は、確実勝利探索より先に
+  // 「相手に勝ちを強制される入口」を最弱のまとまりから終局まで全探索する。
+  // 見つかった入口はこの手番中記憶し、後続の確実勝利探索・通常判断から除外する。
+  const certainLossMoveKeys=new Set();
+  let allCurrentMovesCertainLoss=false;
+  {
+    const currentGroups=optimalHandPartition(p.hand,G.revolution).groupCount;
+
+    if(currentGroups<=3&&legal.length&&cpuCanUseFullResponseSearch(i)){
+      const lossOrdered=orderCertainLossMovesForHand(p.hand,legal,G.revolution);
+
+      for(const a of lossOrdered){
+        const budget=createCertainSearchBudget();
+        if(cpuMoveCertainForcedLossWithResponses(i,a,budget)){
+          certainLossMoveKeys.add(a.cards.map(c=>c.id).sort().join('|'));
+        }
+        // 局面上限に達した入口は「確実敗北」と断定しない。
+      }
+
+      allCurrentMovesCertainLoss=
+        legal.length>0&&
+        legal.every(a=>certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
+
+      // 1つでも安全な入口があれば、確実敗北入口を完全に候補から外す。
+      // 全入口が敗北の場合は、後段でパス可能か判定するため一旦保持する。
+      if(certainLossMoveKeys.size&&!allCurrentMovesCertainLoss){
+        legal=legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
+      }
+    }
+  }
+
+  // 【絶対】8以外の単品を持っておらず、
+  // 現在出せるどのペアも「確実敗北」の入口になる場合は、
+  // ペアを崩して1枚で出す。
+  // 既存の確実敗北探索で全ペアが敗北と証明された場合だけ発動する。
+  {
+    const partitionNow=optimalHandPartition(p.hand,G.revolution);
+    const hasNonEightSingle=partitionNow.singles.some(c=>c.joker||c.rank!==8);
+    const pairMoves=nonFoulLegal.filter(a=>
+      a.type==='group'&&
+      a.n===2
+    );
+
+    const everyPairCertainlyLoses=
+      pairMoves.length>0&&
+      cpuCanUseFullResponseSearch(i)&&
+      pairMoves.every(a=>
+        certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
+      );
+
+    if(!hasNonEightSingle&&everyPairCertainlyLoses){
+      const pairCardIds=new Set();
+      for(const pair of pairMoves){
+        for(const c of pair.cards){
+          if(!c.joker)pairCardIds.add(c.id);
+        }
+      }
+
+      const brokenPairSingles=rawLegal.filter(a=>
+        a.type==='single'&&
+        a.cards.length===1&&
+        !a.cards[0].joker&&
+        pairCardIds.has(a.cards[0].id)&&
+        !(p.hand.length===1&&isFoulFinish(a))
+      );
+
+      if(brokenPairSingles.length){
+        brokenPairSingles.sort((x,y)=>
+          strength(x.rank,G.revolution)-strength(y.rank,G.revolution)||
+          (x.cards[0].suit||'Z').localeCompare(y.cards[0].suit||'Z')
+        );
+        legal=[brokenPairSingles[0]];
+      }
+    }
+  }
+
+  // 【最強モード限定・最上位】富豪がまだ上がっていない場合に限り、
+  // 平民と貧民のどちらかが確実に上がれるルートを持つなら、
+  // その本人は確実上がりルートを選び、もう一方は必要であればパスして妨害しない。
+  // 全員平民のゲーム、および富豪が上がった後は適用しない。
+  let STRONG_COMMON_POOR_COOP=false;
+  let STRONG_COMMON_POOR_PASS=false;
+  if(CPU_MODE==='strong'){
+    const richIndexForCoop=G.players.findIndex(x=>x.role==='富豪');
+    const richStillPlayingForCoop=
+      richIndexForCoop>=0&&!G.players[richIndexForCoop].finished;
+    const meIsCommonPoor=
+      richStillPlayingForCoop&&(p.role==='平民'||p.role==='貧民');
+
+    if(meIsCommonPoor){
+      const mateRole=p.role==='平民'?'貧民':'平民';
+      const mateIndex=G.players.findIndex((x,j)=>
+        j!==i&&!x.finished&&x.role===mateRole
+      );
+
+      // 自分自身に確実上がりルートがあるなら最優先。
+      const orderedMine=orderCertainMovesForHand(
+        p.hand,
+        legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))),
+        G.revolution
+      );
+      let myCertainFirst=null;
+      for(const a of orderedMine){
+        const steps=cpuMoveCertainFinishStepsBounded(i,a,new Map(),createCertainSearchBudget());
+        if(Number.isFinite(steps)){myCertainFirst=a;break}
+      }
+      if(!myCertainFirst){
+        for(const a of orderedMine){
+          if(cpuMoveCertainFinishWithResponses(i,a,createCertainSearchBudget(),null)){
+            myCertainFirst=a;break;
+          }
+        }
+      }
+      if(myCertainFirst){
+        legal=[myCertainFirst];
+        STRONG_COMMON_POOR_COOP=true;
+      }else if(mateIndex>=0){
+        // もう一方の平民/貧民が現在の手札から確実に上がれるかを見る。
+        const mate=G.players[mateIndex];
+        const mateLegal=allLegal(mate).filter(a=>
+          !(mate.hand.length===a.n&&isFoulFinish(a))&&!moveLeavesOnlyFoulCards(mate,a)
+        );
+        const mateOrdered=orderCertainMovesForHand(mate.hand,mateLegal,G.revolution);
+        let mateCertain=mateOrdered.some(a=>
+          Number.isFinite(cpuMoveCertainFinishStepsBounded(mateIndex,a,new Map(),createCertainSearchBudget()))
+        );
+        if(!mateCertain&&cpuCanUseFullResponseSearch(mateIndex)){
+          mateCertain=mateOrdered.some(a=>
+            cpuMoveCertainFinishWithResponses(mateIndex,a,createCertainSearchBudget(),null)
+          );
+        }
+
+        // 相方に確実上がりがあり、自分が現在パス可能ならパスして妨害しない。
+        if(mateCertain&&G.pile){
+          STRONG_COMMON_POOR_PASS=true;
+        }
+      }
+    }
+  }
+
+  // 1手番内で確実経路探索の結果を共有する。
+  const certainStepsByKey=new Map();
+  const moveKey=a=>a.cards.map(c=>c.id).sort().join('|');
+
+  // 【最上位・絶対】自分の残り手札から、相手に手番を渡さず合法的に上がれる、
+  // または相手が返してきてもその後の応手を含めて確実に上がれるルートが存在する場合、
+  // 他のすべての絶対条件・優先条件より先にそのルートだけを残す。
+  {
+    const orderedTop=orderCertainMovesForHand(
+      p.hand,
+      legal.filter(a=>!certainLossMoveKeys.has(moveKey(a))),
+      G.revolution
+    );
+    let firstTopCertain=null;
+
+    const searchStage1AtDepth=(a,depthOverride,budget)=>{
+      const used=new Set(a.cards.map(c=>c.id));
+      const remaining=p.hand.filter(c=>!used.has(c.id));
+      if(!remaining.length)return isFoulFinish(a)?Infinity:1;
+      const nextRev=a.revolution?!G.revolution:G.revolution;
+      const keepsControl=
+        moveClearsPileWithoutOpponent(a,G.revolution)||
+        cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+      if(!keepsControl)return Infinity;
+      const memo=new Map();
+      const rest=certainRunOutMinStepsBounded(i,remaining,nextRev,memo,depthOverride,budget);
+      return Number.isFinite(rest)?1+rest:Infinity;
+    };
+
+    // 第1段階：相手が一度も返せない確実経路。
+    // 20,000局面に達したら、その深度ですでに着手した入口は放棄し、
+    // 未着手入口だけを1段浅い深度で続ける。
+    let depthReduction=0;
+    let remainingEntries=[...orderedTop];
+    while(!firstTopCertain&&remainingEntries.length){
+      const budget=createCertainSearchBudget();
+      const attemptedThisDepth=new Set();
+      let cutoff=false;
+
+      for(const a of remainingEntries){
+        const k=moveKey(a);
+        attemptedThisDepth.add(k);
+        const used=new Set(a.cards.map(c=>c.id));
+        const rem=p.hand.filter(c=>!used.has(c.id));
+        const nextRev=a.revolution?!G.revolution:G.revolution;
+        let d=cpuCertainSearchDepthForState(rem,nextRev);
+        if(d===Infinity){
+          if(depthReduction>0)d=Math.max(1,5-depthReduction);
+        }else{
+          d=Math.max(1,d-depthReduction);
+        }
+
+        const steps=searchStage1AtDepth(a,d,budget);
+        certainStepsByKey.set(k,steps);
+        if(Number.isFinite(steps)){firstTopCertain=a;break}
+        if(budget.cutoff){cutoff=true;break}
+      }
+      if(firstTopCertain||!cutoff)break;
+      remainingEntries=remainingEntries.filter(a=>!attemptedThisDepth.has(moveKey(a)));
+      depthReduction++;
+      if(depthReduction>5)break;
+    }
+
+    // 第2段階：相手の合法な全応手を含め、入口順を最初から探索し直す。
+    if(!firstTopCertain&&cpuCanUseFullResponseSearch(i)){
+      depthReduction=0;
+      remainingEntries=[...orderedTop];
+      while(!firstTopCertain&&remainingEntries.length){
+        const budget=createCertainSearchBudget();
+        const attemptedThisDepth=new Set();
+        let cutoff=false;
+
+        for(const a of remainingEntries){
+          const k=moveKey(a);
+          attemptedThisDepth.add(k);
+          const groups=optimalHandPartition(p.hand,G.revolution).groupCount;
+          const headsUpDepth=cpuFullInfoHeadsUpDepth(i,groups);
+          let d=headsUpDepth!==null
+            ?headsUpDepth
+            :(groups>=6?2:groups===5?4:groups===4?4:Infinity);
+          if(d===Infinity){
+            if(depthReduction>0)d=Math.max(1,5-depthReduction);
+          }else{
+            d=Math.max(1,d-depthReduction);
+          }
+
+          if(cpuMoveCertainFinishWithResponses(i,a,budget,d)){
+            certainStepsByKey.set(k,1);
+            firstTopCertain=a;
+            break;
+          }
+          if(budget.cutoff){cutoff=true;break}
+        }
+        if(firstTopCertain||!cutoff)break;
+        remainingEntries=remainingEntries.filter(a=>!attemptedThisDepth.has(moveKey(a)));
+        depthReduction++;
+        if(depthReduction>5)break;
+      }
+    }
+
+    if(firstTopCertain){
+      // 【最上位・絶対】
+      // 確実上がりルートが見つかった時点で、他の絶対条件・優先条件・パス評価へ進まず即採用する。
+      // firstTopCertain は nonFoulLegal から探索しており、探索側でも反則上がりを除外済み。
+      await playMove(i,firstTopCertain);
+      return;
+    }
+    var TOP_CERTAIN_ROUTE_ACTIVE=false;
+  }
+  const isLead=!G.pile;
+  const isSingle=a=>a.type==='single'&&a.cards.length===1;
+  const isSingleS3=a=>isSingle(a)&&a.cards[0].id==='S3';
+  const mustUseS3AgainstJoker=
+    !!(
+      G.pile&&
+      G.pile.type==='single'&&
+      G.pile.rank===16&&
+      G.lead!==null&&
+      G.lead!==i&&
+      G.players[G.lead]&&
+      G.players[G.lead].hand.length<=8&&
+      legal.some(isSingleS3)
+    );
+  const isSingleJoker=a=>isSingle(a)&&a.cards[0].joker;
+  const isSingleEight=a=>isSingle(a)&&!a.cards[0].joker&&a.cards[0].rank===8;
+  const isEightPair=a=>a.type==='group'&&a.n===2&&a.cards.some(c=>!c.joker&&c.rank===8);
+  const hasS3=p.hand.some(c=>c.id==='S3');
+  const hasJoker=p.hand.some(c=>c.joker);
+  const hasOtherThree=p.hand.some(c=>!c.joker&&c.rank===3&&c.id!=='S3');
+  const nobodyPassed=G.players.every(x=>x.finished||!x.passed);
+  const richIndex=G.players.findIndex(x=>x.role==='富豪');
+  const richStillPlaying=richIndex>=0&&!G.players[richIndex].finished;
+  const commonOrPoor=(p.role==='平民'||p.role==='貧民')&&richStillPlaying;
+  const richThreeStrategy=cpuRichThreeOrLessStrategyState(i);
+  const active=G.players.map((x,j)=>({x,j})).filter(o=>!o.x.finished);
+  const headsUpOpponentAtThreeOrLess=
+    active.length===2&&active.some(o=>o.j!==i&&o.x.hand.length<=3);
+  const richAtThreeOrLess=
+    richStillPlaying&&G.players[richIndex].hand.length<=3;
+  const otherCommonPoorHasPlayedThisTrick=(()=>{
+    if(!richAtThreeOrLess||!(p.role==='平民'||p.role==='貧民'))return false;
+    const otherIndex=G.players.findIndex((x,j)=>
+      j!==i&&!x.finished&&(x.role==='平民'||x.role==='貧民'));
+    if(otherIndex<0)return false;
+    return (G.pileHistory||[]).some(entry=>entry.player===otherIndex);
+  })();
+  const richHasPassedThisTrick=
+    richIndex>=0&&G.players[richIndex].passed;
+  const mustNotPassForRichAtThreeOrLess=
+    richAtThreeOrLess&&
+    !richHasPassedThisTrick&&
+    (p.role==='平民'||p.role==='貧民')&&
+    !otherCommonPoorHasPlayedThisTrick;
+  const commonPoorAtThreeOrLess=
+    p.role==='富豪'&&G.players.some((x,j)=>
+      j!==i&&!x.finished&&(x.role==='平民'||x.role==='貧民')&&x.hand.length<=3);
+
+  // 後段の優先条件・パス判断でも参照するため、ブロックスコープの外で定義する。
+  const canPassAsActionEarly=
+    !!G.pile&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess;
+
+  // 【絶対】自分が確実に負ける入口は選択しない。
+  // 全合法入口が確実敗北で、かつパス可能ならパスする。
+  if(allCurrentMovesCertainLoss&&canPassAsActionEarly){
+    if(await cpuTryPass(i))return;
+  }
+
+  // パスできない場合でも、もし安全入口が存在するなら敗北入口は候補へ戻さない。
+  if(certainLossMoveKeys.size&&!allCurrentMovesCertainLoss){
+    legal=legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
+  }
+
+  if(!TOP_CERTAIN_ROUTE_ACTIVE&&!STRONG_COMMON_POOR_COOP&&!STRONG_COMMON_POOR_PASS){
+  // 【絶対】富豪が未上がりで、平民/貧民がカードを出して残り3枚以下になった後に富豪がパスした場合、
+  // 最後の平民/貧民は原則パス。ただし、この手から相手へ手番を渡さず確実に上がれる手がある場合は出す。
+  if(G.pile&&richStillPlaying&&G.lead!==null){
+    const leader=G.players[G.lead],rich=G.players[richIndex];
+    const isLastCommonPoor=i!==G.lead&&(p.role==='平民'||p.role==='貧民');
+    const leaderMadeThreeOrLess=(leader.role==='平民'||leader.role==='貧民')&&leader.hand.length<=3;
+    if(isLastCommonPoor&&leaderMadeThreeOrLess&&rich.passed&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess){
+      let firstCertainLocal=null;
+      for(const a of orderCertainMovesForHand(p.hand,legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))),G.revolution)){
+        const steps=cpuMoveCertainFinishSteps(i,a,new Map());
+        if(Number.isFinite(steps)){firstCertainLocal=a;break}
+      }
+      if(firstCertainLocal){
+        legal=[firstCertainLocal];
+      }
+      else{if(await cpuTryPass(i))return}
+    }
+  }
+
+  // 【絶対】各ゲーム最初の1手：K以上での革命、および3での革命は禁止。
+  // K以上の非革命手は許可する。
+  if((G.turnCount||0)===0&&legal.length){
+    legal=legal.filter(a=>!a.revolution||(a.rank<13&&a.rank!==3));
+  }
+  // 【絶対】各ゲーム開始後1ターン目で、最初にカードを出す人は2のペアを出さない。
+  if((G.turnCount||0)===0&&legal.length){
+    legal=legal.filter(a=>!(a.type==='group'&&a.n===2&&a.rank===15));
+  }
+
+
+  // 【絶対】反則上がりにならない数字が1種類しかない時は、反則対象札から先に処理する。
+  if(legal.length&&p.hand.some(isFoulRiskCard)){
+    const safeRanks=new Set(p.hand.filter(c=>!isFoulRiskCard(c)).map(c=>String(c.rank)));
+    if(safeRanks.size===1){
+      const riskOnly=legal.filter(a=>a.cards.every(isFoulRiskCard));
+      if(riskOnly.length)legal=riskOnly;
+      const riskLeft=a=>{const used=new Set(a.cards.map(c=>c.id));return p.hand.filter(c=>!used.has(c.id)&&isFoulRiskCard(c)).length};
+      if(legal.length){const min=Math.min(...legal.map(riskLeft));legal=legal.filter(a=>riskLeft(a)===min)}
+    }
+  }
+
+  // 【絶対】場が流れた直後は8単騎・8ペアを出さない。
+  // ただし、その8切りの次の1手で確実に合法上がりできる場合は許可。
+  if(isLead&&legal.length){
+    const filtered=legal.filter(a=>!(isSingleEight(a)||isEightPair(a))||cpuEightMoveThenNextFinish(i,a));
+    if(filtered.length)legal=filtered;
+  }
+
+  // 【絶対】平民/貧民が革命した直後：場が流れるまで革命返しをしない。
+  // 場流れ直後の1手も革命禁止。ただし、革命返し不能を確定でき、残り札で確実に上がれる革命は例外。
+  if(commonOrPoor&&legal.length&&(G.commonPoorRevolutionLock||(isLead&&G.commonPoorNoLeadRevolutionOnce))){
+    legal=legal.filter(a=>!a.revolution||cpuRevolutionExceptionCertain(i,a));
+  }
+
+  // 【絶対】残り手札が2枚でJokerを含み、相手がスペード3を持っている可能性がある場合はパスする。
+  if(G.pile&&p.hand.length===2&&p.hand.some(c=>c.joker)&&canPassAsActionEarly){
+    const opponentMayHaveS3=(()=>{
+      if(CPU_MODE==='strong'){
+        return G.players.some((x,j)=>j!==i&&!x.finished&&x.hand.some(c=>c.id==='S3'));
+      }
+      const mem=cpuMemory(i);
+      if(mem.current.has('S3')||mem.played.has('S3')||mem.blindId==='S3')return false;
+      return true;
+    })();
+    if(opponentMayHaveS3){
+      if(await cpuTryPass(i))return;
+    }
+  }
+
+  // 【絶対】相手の単騎への追従で、残り4枚以下の人が誰もいない間はジョーカーを出さない。
+  // ただしCPU自身が4枚以下なら使用可。ほかの誰かが4枚以下の場合も使用可。
+  const anyoneAtFourOrLess=G.players.some(x=>!x.finished&&x.hand.length<=4);
+  if(G.pile&&G.pile.type==='single'&&!anyoneAtFourOrLess&&p.hand.length>4){
+    legal=legal.filter(a=>!a.cards.some(c=>c.joker));
+  }
+
+  // 【優先・高】ジョーカー未出現かつ自分も未所持なら、スペ3単騎を強く避ける。
+  // ただし、貧民が交換時に富豪へ渡した札が非ジョーカーだった場合、その貧民には適用しない。
+  // 絶対禁止ではなく、preferredScore で強いペナルティを与える。
+
+  // 【絶対】誰もパスしておらず、相手がスペード3を持っている可能性がある時はJoker単騎を出さない。
+  // ただし、現在カードを出した相手の残り手札が4枚以下で、その場札より強いものを自分が持っていない時は、
+  // 完全情報なら相手の実手札を見て判断し、完全情報でない時だけ50%の確率でJoker単騎を許可する。
+  // 自分が平民で、現在カードを出した相手が貧民の場合はこの例外を適用せずJokerを出さない。
+  const anyOpponentMayHaveS3=(()=>{
+    if(CPU_MODE==='strong'){
+      return G.players.some((x,j)=>j!==i&&!x.finished&&x.hand.some(c=>c.id==='S3'));
+    }
+    const mem=cpuMemory(i),s3='S3';
+    if(mem.current.has(s3)||mem.played.has(s3)||mem.blindId===s3)return false;
+    return G.players.some((x,j)=>j!==i&&!x.finished);
+  })();
+
+  const shortLeaderNoStrongerInOwnHand=(()=>{
+    if(!G.pile||G.pile.type!=='single'||G.lead===null||G.lead===i)return false;
+    const leader=G.players[G.lead];
+    if(!leader||leader.finished||leader.hand.length>4)return false;
+    const pileRank=G.pile.rank;
+    if(pileRank===16)return false;
+    const ownStronger=p.hand.some(c=>{
+      if(c.joker)return false;
+      return strength(c.rank,G.revolution)>strength(pileRank,G.revolution);
+    });
+    return !ownStronger;
+  })();
+
+  const commonVsPoorNoJokerException=
+    p.role==='平民'&&G.lead!==null&&G.players[G.lead].role==='貧民';
+
+  const jokerSingleRiskException=(()=>{
+    if(!(nobodyPassed&&anyOpponentMayHaveS3&&shortLeaderNoStrongerInOwnHand&&!commonVsPoorNoJokerException))return false;
+
+    if(cpuCanUseFullResponseSearch(i)){
+      // 完全情報が使える局面では確率を使わず、現在の出し手の実手札を見て判断する。
+      if(G.lead===null||G.lead===i)return false;
+      const leader=G.players[G.lead];
+      const pileRank=G.pile&&G.pile.rank;
+      if(!leader||!G.pile||pileRank===16)return false;
+
+      // 相手が♠3を実際に持っているならJoker単騎は出さない。
+      if(leader.hand.some(c=>c.id==='S3'))return false;
+
+      // 相手が場札より強い通常札を持っているなら、Jokerを使う必要はないと判断して出さない。
+      const leaderHasStrongerNatural=leader.hand.some(c=>
+        !c.joker&&strength(c.rank,G.revolution)>strength(pileRank,G.revolution)
+      );
+      return !leaderHasStrongerNatural;
+    }
+
+    // 完全情報でない局面だけ50%の確率でJoker単騎を許可する。
+    return Math.random()<0.50;
+  })();
+
+  if(nobodyPassed&&anyOpponentMayHaveS3&&!jokerSingleRiskException){
+    legal=legal.filter(a=>!isSingleJoker(a));
+  }
+
+  // 【絶対】富豪がまだ上がっていない時、貧民の単騎に対して平民はジョーカーを出さない。
+  // ジョーカー後に相手へ手番を渡さず確実に上がり切れる場合のみ例外。
+  if(richStillPlaying&&G.pile&&G.pile.type==='single'&&p.role==='平民'&&G.lead!==null&&G.players[G.lead].role==='貧民'){
+    legal=legal.filter(a=>!isSingleJoker(a)||cpuCanCertainlyFinishAfterSingleJoker(i,a));
+  }
+
+  // 【絶対】富豪未上がり時、平民のジョーカーに対して貧民はスペ3返ししない。
+  // スペ3返し後に相手へ手番を渡さず確実に上がり切れる場合のみ例外。
+  if(richStillPlaying&&p.role==='貧民'&&G.pile&&G.pile.type==='single'&&G.pile.cards.some(c=>c.joker)){
+    const leader=G.players[G.lead];
+    if(leader&&leader.role==='平民')legal=legal.filter(a=>!isSingleS3(a)||cpuCanCertainlyFinishAfterSp3Return(i,a));
+  }
+
+  // 【絶対】ジョーカー出現後、スペ3だけを3として持つ場合の強制手（革命中は無効）。
+  // ただし、スペード3が現在手札の最適分割でまとまりの一部なら適用しない。
+  const spade3Bundled=isSpade3InOptimalBundle(p.hand,G.revolution);
+  if(!G.revolution&&G.jokerPlayed&&hasS3&&!hasOtherThree&&!spade3Bundled){
+    if(isLead){
+      const forced=nonFoulLegal.filter(isSingleS3);
+      if(forced.length)legal=forced;
+    }else if(G.pile&&G.pile.type==='single'&&strength(G.pile.rank,false)<strength(8,false)&&p.hand.some(c=>!c.joker&&c.rank===8)){
+      const forced=nonFoulLegal.filter(isSingleEight);
+      if(forced.length)legal=forced;
+    }
+  }
+
+  // 【絶対】場が流れて空場になったときはパスしない。
+  // 「自分が以前出した札がまだ場にあり、他者が出札して手番が戻った」局面は空場ではないため、パスしてよい。
+  // 絶対禁止（反則上がり／残りが反則札だけになる手）を復活させず、安全な合法手だけから必ず1手選ぶ。
+  if((headsUpOpponentAtThreeOrLess||mustNotPassForRichAtThreeOrLess||commonPoorAtThreeOrLess)&&nonFoulLegal.length){
+    // 【最上位・絶対】
+    // ・1対1で相手残り3枚以下
+    // ・富豪残り3枚以下で、平民/貧民のもう一人がまだこの場でカードを出していない
+    // ・平民または貧民の残り3枚以下に対する富豪
+    // のいずれかでは、安全な合法手が1つでもある限りパスしない。
+    if(!legal.length)legal=[...nonFoulLegal];
+  }else if(!legal.length&&isLead){
+    legal=[...nonFoulLegal];
+  }
+  if(!legal.length){
+    if(!G.pile&&nonFoulLegal.length){
+      // 空場ではパス不可。優先条件で候補が消えていても安全な合法手を復元する。
+      legal=[...nonFoulLegal];
+    }else if(!G.pile&&rawLegal.length){
+      // 安全手そのものが存在しない不可避局面では、停止せず実合法手を復元する。
+      legal=[...rawLegal];
+    }else{
+      if(await cpuTryPass(i))return;
+    }
+  }
+
+  // 【高優先】1人が上がって1対1になった直後、その上がった人の最後の場札に対して、
+  // 残った相手が「現在の場に返せる組み合わせ」を持ち得ないとCPUの記憶から証明できるなら、
+  // ジョーカーを温存する。ジョーカーなしで出せる手がなければパスする。
+  function remainingOpponentCannotReplyToCurrentPile(otherIndex){
+    if(!G.pile)return false;
+    if(CPU_MODE==='strong'){
+      // 完全情報では、相手の実手札から現在の場への合法な返しを直接列挙する。
+      return !cpuStrongModePlayerHasReply(otherIndex,G.pile,G.revolution);
+    }
+    const other=G.players[otherIndex];
+    if(!other||other.finished)return true;
+    if(other.hand.length<G.pile.n)return true;
+
+    const mem=cpuMemory(i);
+    const unavailable=new Set([...mem.current,...mem.played]);
+    if(mem.blindId)unavailable.add(mem.blindId);
+    const unseen=makeDeck().filter(c=>!unavailable.has(c.id));
+
+    const pile=G.pile;
+    const unseenJoker=unseen.some(c=>c.joker);
+    const natural=unseen.filter(c=>!c.joker);
+
+    if(pile.type==='single'){
+      // 場がJokerならスペ3だけが返せる。
+      if(pile.rank===16)return !unseen.some(c=>c.id==='S3');
+
+      // 縛り中は同スートのみ。Jokerは縛りを無視して返せる。
+      if(unseenJoker)return false;
+      return !natural.some(c=>{
+        if(G.lock&&c.suit!==G.lock)return false;
+        return strength(c.rank,G.revolution)>strength(pile.rank,G.revolution);
+      });
+    }
+
+    if(pile.type==='group'){
+      // 同じ枚数の同ランク組だけが返せる。3人制なので通常カードは各数字最大3枚。
+      const counts={};
+      for(const c of natural){
+        if(G.lock&&!G.lock.includes(c.suit))continue;
+        counts[c.rank]=(counts[c.rank]||0)+1;
+      }
+      for(const [rkStr,count] of Object.entries(counts)){
+        const rk=Number(rkStr);
+        if(strength(rk,G.revolution)<=strength(pile.rank,G.revolution))continue;
+        if(count+(unseenJoker?1:0)>=pile.n)return false;
+      }
+      return true;
+    }
+
+    if(pile.type==='straight'){
+      const bySuit={};
+      for(const [s] of SUITS)bySuit[s]=new Set();
+      for(const c of natural)bySuit[c.suit].add(c.rank);
+
+      // 革命中の Joker・3・4 も返し候補として考慮。
+      if(G.revolution&&pile.n===3&&unseenJoker){
+        for(const [s] of SUITS){
+          if(G.lock&&s!==G.lock)continue;
+          if(bySuit[s].has(3)&&bySuit[s].has(4)&&
+             strength(2,true)>strength(pile.rank,true))return false;
+        }
+      }
+
+      for(const [s] of SUITS){
+        if(G.lock&&s!==G.lock)continue;
+        for(let start=3;start<=16-pile.n+1;start++){
+          if(strength(start,G.revolution)<=strength(pile.rank,G.revolution))continue;
+          const seq=Array.from({length:pile.n},(_,k)=>start+k);
+          const missing=seq.filter(r=>!bySuit[s].has(r)).length;
+          if(missing<=(unseenJoker?1:0))return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  {
+    const activeNow=G.players.map((x,j)=>({x,j})).filter(o=>!o.x.finished);
+    const justFinishedLeader=G.lead!==null&&G.players[G.lead]&&G.players[G.lead].finished;
+    if(G.pile&&activeNow.length===2&&justFinishedLeader&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess){
+      const other=activeNow.find(o=>o.j!==i);
+      if(other&&remainingOpponentCannotReplyToCurrentPile(other.j)){
+        const noJoker=legal.filter(a=>!a.cards.some(c=>c.joker));
+        if(noJoker.length){
+          legal=noJoker;
+        }else{
+          if(await cpuTryPass(i))return;
+        }
+      }
+    }
+  }
+
+  }
+  if(STRONG_COMMON_POOR_PASS&&G.pile){
+    if(await cpuTryPass(i))return;
+  }
+
+  // 最上位の確実手順探索は前半で一度だけ実行済み。ここでは再探索しない。
+
+  // 【優先】富豪が革命したら、平民・貧民は革命返しする。
+  // 【優先】完全情報の時は、相手が革命返しできる手札なら革命しない。
+  // ただし平民・貧民は、富豪が革命返しできないなら革命してよい。
+  // 確実上がりの最上位ルートがある場合は、そちらを優先する。
+  if(!TOP_CERTAIN_ROUTE_ACTIVE&&legal.length){
+    const lastPilePlay=(G.pileHistory&&G.pileHistory.length)
+      ?G.pileHistory[G.pileHistory.length-1]
+      :null;
+
+    // 現在の場そのものが富豪による革命手である場合、
+    // 平民・貧民は合法な革命返しがあればそれを優先する。
+    if(
+      G.pile&&G.pile.revolution&&
+      lastPilePlay&&
+      G.players[lastPilePlay.player]?.role==='富豪'&&
+      (p.role==='平民'||p.role==='貧民')
+    ){
+      const counterMoves=legal.filter(a=>a.revolution);
+      if(counterMoves.length)legal=counterMoves;
+    }
+
+    // 通常モードでも相手全員の手札を完全に特定できている局面は完全情報として扱う。
+    const activeOpponents=G.players
+      .map((x,j)=>({x,j}))
+      .filter(o=>o.j!==i&&!o.x.finished);
+
+    const knownHands=new Map();
+    let completeInfo=CPU_MODE==='strong';
+    if(!completeInfo){
+      completeInfo=activeOpponents.every(o=>{
+        const h=cpuKnownOpponentHand(i,o.j);
+        if(!h)return false;
+        knownHands.set(o.j,h);
+        return true;
+      });
+    }
+
+    const handForOpponent=j=>
+      CPU_MODE==='strong'?G.players[j].hand:knownHands.get(j);
+
+    const playerCanRevolutionReply=(j,firstMove)=>{
+      const hand=handForOpponent(j);
+      if(!hand)return false;
+
+      // firstMove 後の革命状態で、同じ枚数・同じ型の革命返しが可能かを実手札から判定。
+      const afterRev=firstMove.revolution?!G.revolution:G.revolution;
+      for(const cs of combinations(hand)){
+        for(const cand of analysesInState(cs,afterRev)){
+          if(!cand.revolution)continue;
+          if(cand.type!==firstMove.type||cand.n!==firstMove.n)continue;
+          if(strength(cand.rank,afterRev)>strength(firstMove.rank,afterRev))return true;
+        }
+      }
+      return false;
+    };
+
+    if(completeInfo&&legal.length){
+      const richIndex=G.players.findIndex(x=>x.role==='富豪'&&!x.finished);
+      const filtered=legal.filter(a=>{
+        if(!a.revolution)return true;
+
+        // 平民・貧民は、富豪が革命返しできないことが分かっていれば革命してよい。
+        // 他方の平民/貧民が革命返しできることだけを理由には革命を避けない。
+        if((p.role==='平民'||p.role==='貧民')&&richIndex>=0){
+          return !playerCanRevolutionReply(richIndex,a);
+        }
+
+        // 上記例外以外では、完全情報下で相手の誰かが革命返し可能なら革命を避ける。
+        const canBeCountered=activeOpponents.some(o=>playerCanRevolutionReply(o.j,a));
+        return !canBeCountered;
+      });
+
+      // 優先条件なので、革命以外の候補が残る場合だけ革命候補を除外する。
+      if(filtered.length)legal=filtered;
+    }
+  }
+
+  // ---------- ここから「なるべく」条件のみ ----------
+  // 旧来の優先条件はすべて削除し、以下の条件だけをスコア化する。
+  const rankCounts={};for(const c of p.hand)if(!c.joker)rankCounts[c.rank]=(rankCounts[c.rank]||0)+1;
+  const allCommon=G.players.every(x=>x.role==='平民');
+  // 最上位の確実手順探索はこの時点までに完了している。
+  // 優先条件評価のためだけに全候補を再探索すると、深い局面でCPUが長時間停止するため、
+  // ここでは既に「確実」と証明済みのキャッシュだけを参照する。
+  const certainFinishMoves=new Set(
+    TOP_CERTAIN_ROUTE_ACTIVE
+      ? legal.map(a=>moveKey(a))
+      : legal
+          .filter(a=>{
+            const k=moveKey(a);
+            return certainStepsByKey.has(k)&&Number.isFinite(certainStepsByKey.get(k));
+          })
+          .map(a=>moveKey(a))
+  );
+  const key=a=>moveKey(a);
+  // 【優先】場札が単品の時、自分以外の誰かがAの後に2を出す可能性があるならAを避ける。
+  // Aしか出せない場合は、場が空でない限りパスする。
+  function shouldAvoidAceMove(a){
+    if(!G.pile||G.pile.type!=='single')return false;
+    if(!isSingle(a)||a.cards[0].joker||a.cards[0].rank!==14)return false;
+
+    // 既に縛り中ならそのスート、未縛りでもAによって縛りが成立するならAのスートだけが2候補。
+    let requiredSuit=null;
+    if(G.lock){
+      requiredSuit=G.lock;
+    }else{
+      const prevSig=suitSignature(G.pile);
+      const aceSig=suitSignature(a);
+      if(prevSig&&aceSig&&prevSig===aceSig)requiredSuit=aceSig;
+    }
+
+    if(CPU_MODE==='strong'){
+      return G.players.some((op,j)=>{
+        if(j===i||op.finished||op.passed)return false;
+        return op.hand.some(c=>
+          !c.joker&&
+          c.rank===15&&
+          (!requiredSuit||c.suit===requiredSuit)
+        );
+      });
+    }
+
+    const mem=cpuMemory(i);
+    const possibleTwos=makeDeck().filter(c=>
+      !c.joker&&
+      c.rank===15&&
+      (!requiredSuit||c.suit===requiredSuit)
+    );
+
+    // 自分の現手札・既出札・確定ブラインドで所在が説明できない2が1枚でもあれば、
+    // 誰かがその2を出す可能性があると保守的に判定する。
+    return possibleTwos.some(c=>
+      !mem.current.has(c.id)&&
+      !mem.played.has(c.id)&&
+      mem.blindId!==c.id
+    );
+  }
+  const targets3=G.players.map((x,j)=>({x,j,k:j===i?null:cpuEightKnowledge(i,j)})).filter(o=>o.j!==i&&!o.x.finished&&o.x.hand.length<=3);
+  const commonPoorTargets3=targets3.filter(o=>o.x.role==='平民'||o.x.role==='貧民');
+  const nonRichTargets3=targets3.filter(o=>o.x.role!=='富豪');
+
+  // 【なるべく】まとまり判定は手札全体を重複なく最適分割する。
+  // ①組数が最少、②同数なら単品数が最少、の順で採用する。
+  const optimalPartition=optimalHandPartition(p.hand,G.revolution);
+
+  // 【優先】1枚しかない数字＋Jokerで作るペアについて、
+  // 相手がそれより強い自然ペアを持っている可能性がある場合は、そのJokerペアを出さず、
+  // まとまりとしても保護しない。
+  function opponentMayHaveStrongerNaturalPairThan(rank){
+    const threshold=strength(rank,G.revolution);
+
+    if(CPU_MODE==='strong'){
+      return G.players.some((op,j)=>{
+        if(j===i||op.finished)return false;
+        const counts={};
+        for(const c of op.hand){
+          if(!c.joker)counts[c.rank]=(counts[c.rank]||0)+1;
+        }
+        return RANKS.some(rk=>
+          strength(rk,G.revolution)>threshold &&
+          (counts[rk]||0)>=2
+        );
+      });
+    }
+
+    // 通常モードでは、自分の現手札・既出札・判明済みブラインド以外を未知札として扱う。
+    // より強いランクの通常札が2枚以上まだ未知なら、相手がそのペアを持つ可能性ありとする。
+    const mem=cpuMemory(i);
+    const unavailable=new Set([...mem.current,...mem.played]);
+    if(mem.blindId)unavailable.add(mem.blindId);
+
+    return RANKS.some(rk=>{
+      if(strength(rk,G.revolution)<=threshold)return false;
+      const unknownNaturals=SUITS
+        .map(([s])=>`${s}${rk}`)
+        .filter(id=>!unavailable.has(id))
+        .length;
+      return unknownNaturals>=2;
+    });
+  }
+
+  function isUnsafeSinglePlusJokerPair(bundle){
+    if(!bundle||bundle.type!=='group'||bundle.n!==2)return false;
+    if(!bundle.cards.some(c=>c.joker))return false;
+    const natural=bundle.cards.find(c=>!c.joker);
+    if(!natural)return false;
+
+    // 「1枚しかない数字」にだけ適用する。
+    const sameRankCount=p.hand.filter(c=>!c.joker&&c.rank===natural.rank).length;
+    if(sameRankCount!==1)return false;
+
+    return opponentMayHaveStrongerNaturalPairThan(natural.rank);
+  }
+
+  const unsafeJokerPairBundles=optimalPartition.bundles.filter(isUnsafeSinglePlusJokerPair);
+  const unsafeJokerPairKeys=new Set(
+    unsafeJokerPairBundles.map(x=>x.cards.map(c=>c.id).sort().join('|'))
+  );
+
+  // 危険な「単品＋Joker」ペアはまとまりを解除する。
+  const protectedBundles=optimalPartition.bundles
+    .filter(x=>!unsafeJokerPairKeys.has(x.cards.map(c=>c.id).sort().join('|')))
+    .map(a=>new Set(a.cards.map(c=>c.id)));
+
+  const partitionSingles=[
+    ...optimalPartition.singles,
+    ...unsafeJokerPairBundles.flatMap(x=>x.cards)
+  ];
+
+  function bundleBreakPenalty(a){
+    if(mustUseS3AgainstJoker&&isSingleS3(a))return 0;
+    const moveIds=new Set(a.cards.map(c=>c.id));
+    let penalty=0;
+    for(const bundle of protectedBundles){
+      let overlap=0;
+      const overlappedCards=[];
+      for(const id of bundle){
+        if(moveIds.has(id)){
+          overlap++;
+          const c=p.hand.find(x=>x.id===id);
+          if(c)overlappedCards.push(c);
+        }
+      }
+      if(overlap>0&&overlap<bundle.size){
+        // 空場でない時は、通常2／革命3はまとまりから崩してよい。
+        // さらに相手がその最強札を持っていないことが確定していれば、
+        // 通常A／革命4も崩してよい。
+        const allAllowed=overlappedCards.length>0&&overlappedCards.every(canBreakProtectedRankOnFollow);
+        if(!allAllowed)penalty+=1200;
+      }
+    }
+    return penalty;
+  }
+  const remainingGroups=Math.max(1,optimalPartition.groupCount);
+
+  // まとまり崩しフィルタ前の合法手を保持する。
+  // A/2（革命中は4/3）を仮に外したときに解放される弱いカードの判定は、
+  // フィルタ後のlegalではなく、この元の合法手一覧を基準に行う。
+  const legalBeforePartitionFilter=[...legal];
+
+  function canBreakProtectedRankOnFollow(card){
+    if(isLead||!card||card.joker)return false;
+    const freeRank=G.revolution?3:15;   // 通常2、革命3
+    const conditionalRank=G.revolution?4:14; // 通常A、革命4
+    if(card.rank===freeRank)return true;
+    if(card.rank===conditionalRank&&unpassedOpponentsCertainlyLackRank(freeRank))return true;
+    return false;
+  }
+
+  // パスしていない相手が指定ランクを持っていないことを、CPUの記憶から保守的に判定する。
+  // そのランク4枚が「自分の現手札・既出札・判明済みブラインド」のいずれかで全て説明できる場合のみ確定扱い。
+  function unpassedOpponentsCertainlyLackRank(rank){
+    if(CPU_MODE==='strong'){
+      return G.players.every((x,j)=>j===i||x.finished||x.passed||!x.hand.some(c=>!c.joker&&c.rank===rank));
+    }
+    const opponents=G.players.map((x,j)=>({x,j}))
+      .filter(o=>o.j!==i&&!o.x.finished&&!o.x.passed);
+    if(!opponents.length)return true;
+    const mem=cpuMemory(i);
+    const unavailable=new Set([...mem.current,...mem.played]);
+    if(mem.blindId)unavailable.add(mem.blindId);
+    return SUITS.every(([s])=>unavailable.has(`${s}${rank}`));
+  }
+
+  // 【優先】2/A（革命中は3/4）をまとまりから崩せる局面で、
+  // そのカードを仮にまとまりから外した結果、より弱いカードが単品として解放されるなら、
+  // 2/Aより先にその弱いカードを出す。
+  //
+  // ここでは実際に2/Aを出した後を記憶するのではなく、現在手札だけを使って仮想判定する。
+  function hypotheticallyFreedWeakSingles(){
+    if(isLead)return [];
+
+    const freeRank=G.revolution?3:15;          // 通常2、革命3
+    const conditionalRank=G.revolution?4:14;  // 通常A、革命4
+    const candidates=[];
+
+    for(const bundle of optimalPartition.bundles){
+      for(const highCard of bundle.cards){
+        if(highCard.joker)continue;
+
+        const isFree=highCard.rank===freeRank;
+        const isConditional=
+          highCard.rank===conditionalRank&&
+          unpassedOpponentsCertainlyLackRank(freeRank);
+
+        if(!isFree&&!isConditional)continue;
+
+        const remaining=p.hand.filter(c=>c.id!==highCard.id);
+        const after=optimalHandPartition(remaining,G.revolution);
+        const afterSingleIds=new Set(after.singles.map(c=>c.id));
+        const highPower=strength(highCard.rank,G.revolution);
+
+        for(const c of bundle.cards){
+          if(c.id===highCard.id||c.joker)continue;
+          if(!afterSingleIds.has(c.id))continue;
+          if(strength(c.rank,G.revolution)>=highPower)continue;
+
+          // 現在の場に、その解放カード自体を単品として合法的に出せる場合だけ候補にする。
+          // ここではまとまり崩しフィルタ前の合法手一覧を使う。
+          const playableNow=legalBeforePartitionFilter.some(a=>
+            a.type==='single'&&
+            a.cards.length===1&&
+            a.cards[0].id===c.id
+          );
+          if(playableNow)candidates.push(c);
+        }
+      }
+    }
+
+    // 重複を除去。
+    const seen=new Set();
+    return candidates.filter(c=>{
+      if(seen.has(c.id))return false;
+      seen.add(c.id);
+      return true;
+    });
+  }
+
+  const freedWeakSinglesNow=hypotheticallyFreedWeakSingles();
+  const freedWeakIdsNow=new Set(freedWeakSinglesNow.map(c=>c.id));
+
+  // 【まとまり判定】組数は「その手を出す前の現在手札」の最適分割で判定する。
+  // 現在手札の最適分割に含まれるまとまりを部分的に崩す手は避ける。
+  // そのような手しかない場合は、後段でパス可能ならパスする。
+  // 確定上がりルートは絶対条件なのでこの判定より優先する。
+  let mustPassForGroupIncrease=false;
+  if(legal.length&&!certainFinishMoves.size){
+    const partitionBundleKeys=new Set(
+      optimalPartition.bundles
+        .filter(x=>!unsafeJokerPairKeys.has(x.cards.map(c=>c.id).sort().join('|')))
+        .map(x=>x.cards.map(c=>c.id).sort().join('|'))
+    );
+    const partitionSingleIds=new Set(partitionSingles.map(c=>c.id));
+
+    const preservesCurrentPartition=a=>{
+      // 現在の最適分割で単品になっているカードだけを出す手は分割を崩さない。
+      if(a.cards.every(c=>partitionSingleIds.has(c.id)))return true;
+
+      // 現在の最適分割の「まとまり」1組を丸ごと出す手も分割を崩さない。
+      const k=a.cards.map(c=>c.id).sort().join('|');
+      if(partitionBundleKeys.has(k))return true;
+
+      // 相手のJoker単騎には、出し手の残り手札が8枚以下の時だけ、
+      // まとまりを崩してでもスペード3を出してよい。
+      if(mustUseS3AgainstJoker&&isSingleS3(a))return true;
+
+      // A/2（革命中は4/3）を仮にまとまりから外すことで解放される
+      // より弱い単品は、まとまり崩しフィルタの例外として残す。
+      if(
+        a.type==='single'&&
+        a.cards.length===1&&
+        freedWeakIdsNow.has(a.cards[0].id)
+      )return true;
+
+      // 空場でない時の例外：
+      // 通常2／革命3はまとまりから崩してよい。
+      // 相手が通常2／革命3を持っていないことが確定している場合は、
+      // 通常A／革命4も崩してよい。組数が増えても許可する。
+      if(!isLead&&a.cards.length>0&&a.cards.every(canBreakProtectedRankOnFollow))return true;
+
+      return false;
+    };
+
+    const nonIncreasing=legal.filter(preservesCurrentPartition);
+    if(nonIncreasing.length){
+      legal=nonIncreasing;
+    }else{
+      mustPassForGroupIncrease=true;
+    }
+  }
+
+  // 現在カードを出した相手がスペード3を持っている可能性が残るかをCPU記憶から判定する。
+  
+  function opponentJustPassedOnMySingle(currentStrongCard){
+    if(!isLead||!currentStrongCard)return false;
+    const ctx=G.lastClearPassContext;
+    if(!ctx||ctx.leader!==i||ctx.type!=='single')return false;
+
+    // 縛りが起きていたトリックでのパスは、数字の強さだけを根拠にできないため除外する。
+    if(ctx.locked)return false;
+
+    // 直前に相手がパスした単品が、現在持っている強いカード以下である場合だけ、
+    // そのパスを「強い方から出す」根拠に使う。
+    if(strength(ctx.rank,G.revolution)>strength(currentStrongCard.rank,G.revolution))return false;
+
+    return (ctx.passers||[]).some(j=>j!==i);
+  }
+
+
+  function handAllPairs(hand,revolution=G.revolution){
+    const part=optimalHandPartition(hand,revolution);
+    return part.groupCount>0&&part.singleCount===0&&
+      part.bundles.every(x=>x.type==='group'&&x.n===2);
+  }
+  function isPairMove(a){return a.type==='group'&&a.n===2}
+  function moveBreaksProtectedBundle(a){
+    const moveIds=new Set(a.cards.map(c=>c.id));
+    for(const bundle of protectedBundles){
+      let overlap=0;
+      for(const id of bundle)if(moveIds.has(id))overlap++;
+      if(overlap>0&&overlap<bundle.size)return true;
+    }
+    return false;
+  }
+  function moveCreatesLock(a){
+    if(!G.pile||a.cards.some(c=>c.joker))return false;
+    const prev=suitSignature(G.pile);
+    const now=suitSignature(a);
+    return !!(prev&&now&&prev===now);
+  }
+  function preferredScore(a){
+    if(!a)return Infinity;
+    let s=0;const natural=a.cards.filter(c=>!c.joker),single=isSingle(a),certain=certainFinishMoves.has(key(a));
+    const r=single&&!a.cards[0].joker?a.cards[0].rank:null;
+
+    // 富豪残り3枚以下への平民/貧民の出し方。
+    // 確実上がりルートは常にこの条件より優先する。
+    if(richThreeStrategy&&!certain){
+      const richWillPass=cpuMoveCertainlyUnanswerableByPlayer(i,a,richThreeStrategy.rich,G.revolution);
+
+      // 富豪が8を持たないことが確定、または既に8を出したことがある：
+      // 原則ペアを出さない。ただし富豪の確定パス手は許可。
+      if(richThreeStrategy.avoidPair&&a.type==='group'&&a.n===2&&!richWillPass)s+=4500;
+
+      // 富豪が8を確実に持つ、または8の所在不明かつ未出：
+      // 通常時の8より弱い単品を原則出さない。富豪の確定パス手は許可。
+      // 革命中は strength() により「8より弱い」を革命状態の強弱で判定する。
+      if(richThreeStrategy.avoidWeakSingle&&single&&!a.cards[0].joker&&
+         strength(a.cards[0].rank,G.revolution)<strength(8,G.revolution)&&!richWillPass){
+        s+=4500;
+      }
+    }
+
+    // 【優先】相手がJoker単騎を出し、その出し手の残り手札が8枚以下なら、
+    // まとまりを崩してでもスペード3を優先する。
+    // 上位の絶対条件でスペ3返しが禁止される場合は、その絶対条件を優先する。
+    if(mustUseS3AgainstJoker){
+      if(isSingleS3(a))s-=5000;
+      else s+=1500;
+    }
+
+    // 【優先】場札がペアの時、Jokerを使わずに出せる合法なペアが1つでもあるなら、
+    // Jokerを含むペアより、Jokerを使わないペアを優先する。
+    if(G.pile&&isPairMove(G.pile)&&isPairMove(a)){
+      const hasNaturalPair=legal.some(x=>isPairMove(x)&&!x.cards.some(c=>c.joker));
+      if(hasNaturalPair){
+        if(a.cards.some(c=>c.joker))s+=4200;
+        else s-=1200;
+      }
+    }
+
+    // 【優先】まとまりを崩すしか出し方がないときは、縛りを成立させる出し方を優先する。
+    // まとまりを崩さない合法手が1つでもある場合、この条件は適用しない。
+    const onlyBundleBreakingMoves=
+      legal.length>0&&legal.every(x=>moveBreaksProtectedBundle(x));
+
+    if(onlyBundleBreakingMoves&&moveBreaksProtectedBundle(a)){
+      if(moveCreatesLock(a)){
+        s-=1800;
+      }else{
+        const breakingAlternatives=legal.filter(x=>moveBreaksProtectedBundle(x));
+        if(breakingAlternatives.some(moveCreatesLock))s+=1800;
+      }
+    }
+
+    // 【優先・最強モード限定】富豪がまだ上がっていない時、
+    // 平民または貧民の残り手札がすべてペアなら、平民と貧民は空場でペアを優先する。
+    // 場札が単品で、自分が8を合法的に出せる場合は8を優先する。
+    if(CPU_MODE==='strong'&&richStillPlaying&&(p.role==='平民'||p.role==='貧民')){
+      const common=G.players.find(x=>!x.finished&&x.role==='平民');
+      const poor=G.players.find(x=>!x.finished&&x.role==='貧民');
+      const eitherAllPairs=
+        !!((common&&handAllPairs(common.hand,G.revolution))||(poor&&handAllPairs(poor.hand,G.revolution)));
+
+      if(eitherAllPairs){
+        if(isLead){
+          if(isPairMove(a))s-=4200;
+          else s+=1800;
+        }else if(G.pile&&G.pile.type==='single'){
+          const isSingleEightMove=isSingle(a)&&!a.cards[0].joker&&a.cards[0].rank===8;
+          const hasLegalSingleEight=legal.some(x=>isSingle(x)&&!x.cards[0].joker&&x.cards[0].rank===8);
+          if(hasLegalSingleEight){
+            if(isSingleEightMove)s-=5200;
+            else s+=2200;
+          }
+        }
+      }
+    }
+
+    // 【優先・最強モード限定】平民と貧民の残り手札がともにすべてペアの場合、
+    // 富豪は空場でペアを出さない。富豪自身も全てペアなら、最弱ペアを崩して単品で出す。
+    if(CPU_MODE==='strong'&&richStillPlaying&&p.role==='富豪'&&isLead){
+      const common=G.players.find(x=>!x.finished&&x.role==='平民');
+      const poor=G.players.find(x=>!x.finished&&x.role==='貧民');
+      const bothOpponentsAllPairs=!!(common&&poor&&
+        handAllPairs(common.hand,G.revolution)&&handAllPairs(poor.hand,G.revolution));
+      if(bothOpponentsAllPairs){
+        const selfAllPairs=handAllPairs(p.hand,G.revolution);
+        if(selfAllPairs){
+          const pairRanks=[...new Set(p.hand.filter(c=>!c.joker).map(c=>c.rank)
+            .filter(r=>p.hand.filter(c=>!c.joker&&c.rank===r).length>=2))]
+            .sort((x,y)=>strength(x,G.revolution)-strength(y,G.revolution));
+          const weakestPairRank=pairRanks[0];
+          const isWeakestPairSingle=isSingle(a)&&!a.cards[0].joker&&a.cards[0].rank===weakestPairRank;
+          if(isWeakestPairSingle)s-=6500;
+          else if(isPairMove(a))s+=6500;
+          else s+=2200;
+        }else{
+          if(isPairMove(a))s+=5200;
+          else s-=1200;
+        }
+      }
+    }
+
+    // 【優先・最強モード限定】富豪の手札がすべてペアの場合、
+    // 平民・貧民は空場でペアを出さない。
+    // 場札がペアで、自分が8を2枚以上持つ場合は8ペアを優先する。
+    // ただし平民または貧民の手札がすべてペアの場合は適用しない。
+    if(CPU_MODE==='strong'&&richStillPlaying&&(p.role==='平民'||p.role==='貧民')){
+      const rich=G.players[richIndex];
+      const common=G.players.find(x=>!x.finished&&x.role==='平民');
+      const poor=G.players.find(x=>!x.finished&&x.role==='貧民');
+      const eitherCommonPoorAllPairs=
+        !!((common&&handAllPairs(common.hand,G.revolution))||(poor&&handAllPairs(poor.hand,G.revolution)));
+
+      if(rich&&handAllPairs(rich.hand,G.revolution)&&!eitherCommonPoorAllPairs){
+        if(isLead&&isPairMove(a))s+=5000;
+
+        if(G.pile&&isPairMove(G.pile)){
+          const eightCount=p.hand.filter(c=>!c.joker&&c.rank===8).length;
+          const isEightPair=isPairMove(a)&&a.rank===8;
+          if(eightCount>=2){
+            if(isEightPair)s-=5000;
+            else s+=1800;
+          }
+        }
+      }
+    }
+
+    // 【優先】1人が上がって1対1になり、相手の残り手札がすべてペアなら
+    // 自分はペアを出さない。場札がペアで8を2枚以上持つ場合は8ペアを優先し、
+    // 場を流した後はペア以外を優先する。
+    // 最強モードでは実手札、通常モードでは既知情報から「全てペア」と確定できる場合に適用する。
+    if(active.length===2){
+      const opp=active.find(o=>o.j!==i);
+      let opponentAllPairs=false;
+      if(opp){
+        if(CPU_MODE==='strong'){
+          opponentAllPairs=handAllPairs(opp.x.hand,G.revolution);
+        }else{
+          // 通常モードでは相手の実手札を透視しない。
+          // 相手の残り札がすべてCPUに確定している場合だけ全ペア判定を行う。
+          const knownHand=cpuKnownOpponentHand(i,opp.j);
+          if(knownHand)opponentAllPairs=handAllPairs(knownHand,G.revolution);
+        }
+      }
+      if(opp&&opponentAllPairs){
+        if(isLead&&isPairMove(a))s+=5000;
+        if(G.pile&&isPairMove(G.pile)){
+          const eightCount=p.hand.filter(c=>!c.joker&&c.rank===8).length;
+          const isEightPair=isPairMove(a)&&a.rank===8;
+          if(eightCount>=2){
+            if(isEightPair)s-=5000;
+            else if(isPairMove(a))s+=2500;
+          }
+        }
+      }
+    }
+
+    // 【優先】2/A（革命中は3/4）を仮にまとまりから外すことで
+    // より弱いカードが現在単品として出せるようになるなら、その弱いカードを先に出す。
+    if(!certain&&freedWeakSinglesNow.length){
+      const weakestFreedPower=Math.min(
+        ...freedWeakSinglesNow.map(c=>strength(c.rank,G.revolution))
+      );
+
+      const isFreedWeakSingle=
+        single&&
+        !a.cards[0].joker&&
+        freedWeakIdsNow.has(a.cards[0].id)&&
+        strength(a.cards[0].rank,G.revolution)===weakestFreedPower;
+
+      const highRank=G.revolution?3:15;
+      const lowerHighRank=G.revolution?4:14;
+      const isBreakHighSingle=
+        single&&
+        !a.cards[0].joker&&
+        (a.cards[0].rank===highRank||a.cards[0].rank===lowerHighRank);
+
+      if(isFreedWeakSingle)s-=2600;
+      else if(isBreakHighSingle)s+=1200;
+    }
+
+    // 【優先】1枚しかない数字＋Jokerで作るペアで、
+    // 相手がそれより強い自然ペアを持っている可能性がある場合は、そのペアを強く避ける。
+    if(!certain&&a.type==='group'&&a.n===2&&a.cards.some(c=>c.joker)){
+      const moveKey=a.cards.map(c=>c.id).sort().join('|');
+      if(unsafeJokerPairKeys.has(moveKey))s+=6000;
+    }
+
+    // 0) ペア・トリオ・階段のまとまりを崩す手を避ける。
+    if(!certain&&!(mustUseS3AgainstJoker&&isSingleS3(a)))s+=bundleBreakPenalty(a);
+
+    // 【優先】ペアが4組以上ある場合、通常時は3のペアを出さない。
+    // 革命中は3ではなく2のペアを出さない。
+    if(!certain){
+      const pairBundles=optimalPartition.bundles.filter(x=>
+        x.type==='group'&&x.n===2&&!x.cards.some(c=>c.joker)
+      );
+      const avoidedPairRank=G.revolution?15:3;
+      if(
+        pairBundles.length>=4&&
+        a.type==='group'&&
+        a.n===2&&
+        a.rank===avoidedPairRank&&
+        !a.cards.some(c=>c.joker)
+      ){
+        s+=3000;
+      }
+    }
+
+    // 0.5) 残り手札が3組以上で、全て8以外のペアで構成されている場合、
+    // 空場では最弱のペアを出さない。
+    if(isLead&&!certain){
+      const bundles=optimalPartition.bundles;
+      const allPairs=
+        optimalPartition.groupCount>=3&&
+        optimalPartition.singleCount===0&&
+        bundles.length===optimalPartition.groupCount&&
+        bundles.every(x=>
+          x.type==='group'&&
+          x.n===2&&
+          x.rank!==8&&
+          !x.cards.some(c=>c.joker)
+        );
+
+      if(allPairs){
+        const weakestPairPower=Math.min(...bundles.map(x=>strength(x.rank,G.revolution)));
+        if(a.type==='group'&&a.n===2&&strength(a.rank,G.revolution)===weakestPairPower)s+=3000;
+      }
+    }
+
+    // 0.6) 空場で、残り手札がちょうどペア3組なら最弱のペアを出さない。
+    if(isLead&&!certain&&optimalPartition.groupCount===3&&optimalPartition.singleCount===0){
+      const pairs=optimalPartition.bundles.filter(x=>x.type==='group'&&x.n===2);
+      if(pairs.length===3){
+        const weakestPower=Math.min(...pairs.map(x=>strength(x.rank,G.revolution)));
+        if(a.type==='group'&&a.n===2&&strength(a.rank,G.revolution)===weakestPower)s+=2200;
+      }
+    }
+
+    // 0.7) 残り手札がペア2組で親の場合：
+    // 原則弱いペアから。強いペアより強いペアを相手が確実に持たない場合、
+    // または直前に「現在の強いペア以下」のペアへ相手がパスし、
+    // そのトリックで縛りが起きていなかった場合は強いペアから出す。
+    if(isLead&&!certain&&optimalPartition.groupCount===2&&optimalPartition.singleCount===0){
+      const pairs=optimalPartition.bundles.filter(x=>x.type==='group'&&x.n===2);
+      if(pairs.length===2&&a.type==='group'&&a.n===2){
+        const ordered=[...pairs].sort((x,y)=>strength(x.rank,G.revolution)-strength(y.rank,G.revolution));
+        const weakPair=ordered[0],strongPair=ordered[1];
+
+        const opponentCanHaveStrongerPair=(()=>{
+          if(CPU_MODE==='strong'){
+            const threshold=strength(strongPair.rank,G.revolution);
+            return G.players.some((op,j)=>{
+              if(j===i||op.finished)return false;
+
+              const counts={};
+              for(const c of op.hand){
+                if(!c.joker)counts[c.rank]=(counts[c.rank]||0)+1;
+              }
+              const hasJoker=op.hand.some(c=>c.joker);
+
+              return RANKS.some(rk=>{
+                if(strength(rk,G.revolution)<=threshold)return false;
+
+                const naturalCount=counts[rk]||0;
+
+                // 同ランク2枚を持っている場合は当然強いペアを作れる。
+                if(naturalCount>=2)return true;
+
+                // 同ランクの単品1枚＋Jokerでも、そのランクのペアを作れる。
+                if(naturalCount>=1&&hasJoker)return true;
+
+                return false;
+              });
+            });
+          }
+
+          // 通常モードでも、既知情報から
+          // 「同ランク2枚」または「同ランク1枚＋Joker」の可能性が残るなら
+          // 強いペアを持ち得ると保守的に判定する。
+          const mem=cpuMemory(i);
+          const unavailable=new Set([...mem.current,...mem.played]);
+          if(mem.blindId)unavailable.add(mem.blindId);
+
+          const jokerUnavailable=
+            unavailable.has('JK')||
+            G.jokerPlayed===true;
+
+          for(const rk of RANKS){
+            if(strength(rk,G.revolution)<=strength(strongPair.rank,G.revolution))continue;
+
+            const availableNaturals=SUITS
+              .map(([s])=>`${s}${rk}`)
+              .filter(id=>!unavailable.has(id))
+              .length;
+
+            if(availableNaturals>=2)return true;
+            if(availableNaturals>=1&&!jokerUnavailable)return true;
+          }
+          return false;
+        })();
+
+        const ctx=G.lastClearPassContext;
+        const opponentPassedOnMyPair=
+          !!ctx&&
+          ctx.leader===i&&
+          ctx.type==='group'&&
+          ctx.n===2&&
+          !ctx.locked&&
+          (ctx.passers||[]).some(j=>j!==i)&&
+          // 直前にパスされたペアが、現在残っている強いペア以下の強さであり、
+          // そのトリックで縛りが起きていなかった場合だけ根拠として扱う。
+          strength(ctx.rank,G.revolution)<=strength(strongPair.rank,G.revolution);
+
+        const preferStrong=!opponentCanHaveStrongerPair||opponentPassedOnMyPair;
+        const target=preferStrong?strongPair:weakPair;
+        if(a.rank===target.rank)s-=1000;
+        else s+=1000;
+      }
+    }
+
+    // 1) 現在出せるカードの中で、3より強く、最適分割上のまとまりに含まれていない単品は、
+    // ゲーム上もっとも弱い数字から出す。革命中は3ではなく2を基準にする。
+    // ただし空場で、最適分割上の単品が通常時は3・8・2、革命中は2・8・3だけで構成されている場合は、
+    // 単品以外の合法手を優先する。通常時のスペード3にはこの回避条件を適用しない。
+    const isolatedSingleIds=new Set(partitionSingles.filter(c=>!c.joker).map(c=>c.id));
+      const playableIsolatedSingles=legal.filter(x=>
+        isSingle(x)&&
+        !x.cards[0].joker&&
+        isolatedSingleIds.has(x.cards[0].id)
+      );
+
+      const playableIsolatedRanks=[...new Set(playableIsolatedSingles.map(x=>x.cards[0].rank))]
+        .filter(x=>G.revolution ? x<15 : x>3);
+
+      if(single&&!a.cards[0].joker&&playableIsolatedRanks.length){
+        const weakestPlayableIsolated=
+          G.revolution
+            ?Math.max(...playableIsolatedRanks)
+            :Math.min(...playableIsolatedRanks);
+
+        if(
+          r===weakestPlayableIsolated&&
+          isolatedSingleIds.has(a.cards[0].id)
+        )s-=700;
+      }
+
+      if(isLead){
+        const naturalSingles=partitionSingles.filter(c=>!c.joker);
+        const allowedRanks=G.revolution?new Set([15,8,3]):new Set([3,8,15]);
+        const onlySpecialSingles=
+          naturalSingles.length>0&&
+          naturalSingles.every(c=>allowedRanks.has(c.rank));
+        const hasLegalNonSingle=legal.some(x=>!isSingle(x));
+
+        if(onlySpecialSingles&&hasLegalNonSingle&&single&&!a.cards[0].joker){
+          const c=a.cards[0];
+          const exemptSpade3=!G.revolution&&c.id==='S3';
+          const targetSingle=G.revolution
+            ?(c.rank===15||c.rank===8||c.rank===3)
+            :(c.rank===3||c.rank===8||c.rank===15);
+
+          if(targetSingle&&!exemptSpade3)s+=4200;
+        }
+      }
+
+    // 1.1) 空場で、最適分割の結果が3枚以上すべて単品なら、
+    // ゲーム上の強さで最弱のカードは出さない。
+    if(isLead&&p.hand.length>=3&&single){
+      const allSingles=optimalPartition.bundles.length===0&&partitionSingles.length===p.hand.length;
+      if(allSingles){
+        const naturalSingles=partitionSingles.filter(c=>!c.joker);
+        if(naturalSingles.length){
+          const weakest=Math.min(...naturalSingles.map(c=>strength(c.rank,G.revolution)));
+          if(!a.cards[0].joker&&strength(a.cards[0].rank,G.revolution)===weakest)s+=900;
+        }
+      }
+    }
+
+    // 1.25) 空場でないとき、最適分割上で指定ランク以外の単品がない場合は、
+    // そのランクを単品で出してよい。通常時は2、革命中は3に適用する。
+    if(!isLead&&single&&!a.cards[0].joker){
+      const freerank=G.revolution?3:15;
+      const otherSingleExists=partitionSingles
+        .some(c=>!c.joker&&c.rank!==freerank);
+      if(r===freerank&&!otherSingleExists)s-=500;
+    }
+
+    // 1.3) 相手の場札に出せる単品が通常時Aと2だけで、2を複数枚持っていない場合は2を優先する。
+    // ただし、パスしていない相手が2を持っていないことが確定しているならAを優先する。
+    // 革命中は2→3、A→4として同様に判定する。
+    if(G.pile&&G.pile.type==='single'&&!certain){
+      const highRank=G.revolution?3:15; // 通常2、革命3
+      const lowerRank=G.revolution?4:14; // 通常A、革命4
+      const legalNaturalSingles=legal.filter(x=>isSingle(x)&&!x.cards[0].joker);
+      const legalRanks=[...new Set(legalNaturalSingles.map(x=>x.cards[0].rank))];
+      const exactlyTwoRanks=legalRanks.length===2&&legalRanks.includes(highRank)&&legalRanks.includes(lowerRank);
+      const highCount=rankCounts[highRank]||0;
+      if(exactlyTwoRanks&&highCount<2){
+        const chooseLower=unpassedOpponentsCertainlyLackRank(highRank);
+        if(single&&!a.cards[0].joker){
+          if(chooseLower){
+            if(r===lowerRank)s-=3000;
+            else if(r===highRank)s+=1800;
+          }else{
+            if(r===highRank)s-=3000;
+            else if(r===lowerRank)s+=1800;
+          }
+        }
+      }
+    }
+
+    // 1.35) 残り手札の最適分割がちょうど3組で、
+    // 「8」「8より弱い単品1枚」「単品以外1組」の構成なら、
+    // 8より弱いその単品は出さず、単品以外を優先する。
+    {
+      const eightStrength=strength(8,G.revolution);
+      const weakSingles=partitionSingles.filter(c=>!c.joker&&strength(c.rank,G.revolution)<eightStrength);
+      const eightSingles=partitionSingles.filter(c=>!c.joker&&c.rank===8);
+      const nonSingleBundles=optimalPartition.bundles.filter(x=>x.type!=='single');
+      const exactlyThreeGroups=
+        optimalPartition.groupCount===3 &&
+        partitionSingles.length===2 &&
+        eightSingles.length===1 &&
+        weakSingles.length===1 &&
+        nonSingleBundles.length===1;
+
+      if(exactlyThreeGroups&&!certain){
+        const weakId=weakSingles[0].id;
+        if(single&&a.cards[0].id===weakId)s+=1800;
+        else if(a.type!=='single')s-=1200;
+      }
+    }
+
+    // 1.4) 革命できる手では、その革命ランクよりゲーム上弱い札と強い札を比較する。
+    // 弱い札の方が多い場合は革命を優先し、強い札の方が多い場合は革命を避ける。
+    if(a.revolution&&!certain){
+      let weaker=0,stronger=0;
+      const revolutionPower=strength(a.rank,G.revolution);
+      for(const c of p.hand){
+        if(c.joker)continue;
+        const power=strength(c.rank,G.revolution);
+        if(power<revolutionPower)weaker++;
+        else if(power>revolutionPower)stronger++;
+      }
+      if(weaker>stronger)s-=1200;
+      else if(stronger>weaker)s+=1800;
+    }
+
+    // 1.5) 空場で残り手札が5組以上なら、強い手を温存する。
+    // 強弱はゲーム上の強さで判定する。通常時は3が最弱、革命中は2が最弱。
+    // 単騎は通常時A・2／革命中4・3を強い側として温存する。
+    // 同ランク組札の強い手判定は従来どおり通常時K以上／革命中5以下。
+    // 階段は3枚以上をすべて強い手とし、長いほどさらに強いものとして温存する。
+    if(isLead&&remainingGroups>=5&&!certain){
+      let strongLeadPenalty=0;
+      if(a.type==='single'){
+        const c=a.cards[0];
+        if(c.joker) strongLeadPenalty=1800;
+        else if(!G.revolution&&c.rank>=14) strongLeadPenalty=1800; // 通常時：A・2
+        else if(G.revolution&&c.rank<=4) strongLeadPenalty=1800; // 革命中：4・3
+      }else if(a.type==='straight'){
+        // 3枚=1800、4枚=2200、5枚=2600…と長いほど温存を強める。
+        strongLeadPenalty=1800+Math.max(0,a.cards.length-3)*400;
+      }else{
+        const rs=a.cards.filter(c=>!c.joker).map(c=>c.rank);
+        if(a.cards.some(c=>c.joker)) strongLeadPenalty=1800;
+        else if(rs.length){
+          const strongGroup=!G.revolution?Math.max(...rs)>=13:Math.min(...rs)<=5;
+          if(strongGroup)strongLeadPenalty=1800;
+        }
+      }
+      s+=strongLeadPenalty;
+    }
+
+    // 2) 8より強く、最適分割でまとまりに含まれていない単品がある場合、
+    // 相手の単品に対して8を単品で出すのを避ける。
+    const strongerIsolatedSingleExists=partitionSingles.some(c=>
+      !c.joker&&
+      strength(c.rank,G.revolution)>strength(8,G.revolution)
+    );
+    if(
+      G.pile&&
+      G.pile.type==='single'&&
+      strongerIsolatedSingleExists&&
+      single&&
+      r===8
+    )s+=900;
+
+    // 3) 【高優先】空場で、単騎候補が通常は8・A以上・スペード3、革命中は8・4以下しかない場合は組札を強く優先。
+    if(isLead){
+      const naturalSingles=legal.filter(x=>isSingle(x)&&!x.cards[0].joker);
+      const isRestrictedSingle=x=>{
+        const c=x.cards[0];
+        if(G.revolution)return c.rank===8||c.rank<=4;
+        return c.rank===8||c.rank>=14||c.id==='S3';
+      };
+      const onlyRestricted=naturalSingles.length>0&&naturalSingles.every(isRestrictedSingle);
+      if(onlyRestricted&&legal.some(x=>x.type!=='single'))s+=single?3200:-1200;
+    }
+
+    // 【優先】Jokerとスペード3を両方持ち、スペード3が最適分割上どのまとまりにも含まれず、
+    // 手札が7枚以下になったらスペード3単騎を優先する。革命中は適用しない。
+    if(!certain&&!G.revolution&&p.hand.length<=7&&hasJoker&&hasS3){
+      const s3IsIsolated=optimalPartition.singles.some(c=>c.id==='S3');
+      if(s3IsIsolated){
+        if(isSingleS3(a))s-=5200;
+        else s+=2600;
+      }
+    }
+
+    // 【優先】通常時・空場で、残り手札が
+    // 「スペード3、3以外の単品、Joker」の3枚であるとき、
+    // まとまりを解除してでもスペード3単騎から出す。
+    // 革命中は適用しない。
+    if(!certain&&!G.revolution&&isLead&&p.hand.length===3){
+      const s3=p.hand.find(c=>c.id==='S3');
+      const joker=p.hand.find(c=>c.joker);
+      const otherCards=p.hand.filter(c=>!c.joker&&c.id!=='S3');
+
+      const exactShape=
+        !!s3&&
+        !!joker&&
+        otherCards.length===1&&
+        otherCards[0].rank!==3;
+
+      if(exactShape){
+        // まとまり保持ペナルティより強く優先し、♠3単騎を選ぶ。
+        if(isSingleS3(a))s-=5000;
+        else s+=2500;
+      }
+    }
+
+    // 3.5) 【高優先】ジョーカー未出現・自分もジョーカーなしならスペ3単騎を強く避ける。
+    // 貧民が交換で富豪へ非ジョーカーを渡したことを知っている場合は例外。
+    if(!certain&&!G.jokerPlayed&&!hasJoker&&hasS3&&!cpuPoorMayUseS3BeforeJoker(i)&&isSingleS3(a))s+=3600;
+
+    // 4-5) A回避：場札が単品で、自分以外の誰かが2を出す可能性があるならAを強く避ける。
+    if(shouldAvoidAceMove(a))s+=3000;
+
+    // 6) 自分が残り2枚・異なる数字・親：原則弱い方。
+    // 強い方より強いカードを相手が確実に持たない場合、または直前のターンで相手が
+    // 現在の強いカード以下の単品にパスし、そのトリックで縛りが起きていなかった場合は、
+    // 強い方から出す。
+    if(isLead&&p.hand.length===2){
+      const [c1,c2]=p.hand;
+      if(c1.joker||c2.joker||c1.rank!==c2.rank){
+        const ordered=[c1,c2].sort((x,y)=>strength(x.rank,G.revolution)-strength(y.rank,G.revolution));
+        const weak=ordered[0],strong=ordered[1];
+        const preferStrong=cpuCanProveNoOpponentStronger(i,strong)||opponentJustPassedOnMySingle(strong);
+        const target=preferStrong?strong:weak;
+        if(single)s+=a.cards[0].id===target.id?-900:900;
+      }
+    }
+
+    // 7) 全員平民・親・相手残り1枚：組札優先。単騎しかなければ最弱を避ける（自分残り2枚は例外）。
+    if(allCommon&&isLead&&G.players.some((x,j)=>j!==i&&!x.finished&&x.hand.length===1)){
+      const groups=legal.some(x=>x.type!=='single');
+      if(groups)s+=single?900:-1200;
+      else if(single&&p.hand.length!==2){
+        const singles=legal.filter(isSingle),weak=Math.min(...singles.map(x=>strength(x.rank,G.revolution)));
+        if(strength(a.rank,G.revolution)===weak)s+=700;
+      }
+    }
+
+    // 8) 全員平民・相手残り3枚以下で8脅威：8より弱い単騎を避ける。確実上がり手は例外。
+    if(allCommon&&!certain){
+      const threat=targets3.some(o=>o.k.certainlyHasEight||(o.k.uncertain&&!o.k.targetPlayedEight));
+      if(threat&&single&&strength(a.rank,G.revolution)<strength(8,G.revolution))s+=3000;
+    }
+
+    // 9) 富豪未上がり・平民/貧民の対象残り3枚以下で8なし確定または8既出：もう一人の平民/貧民はペア優先。
+    if(richStillPlaying&&(p.role==='平民'||p.role==='貧民')&&!certain){
+      const safe=commonPoorTargets3.some(o=>o.j!==i&&(o.k.certainlyNoEight||o.k.targetPlayedEight));
+      if(safe){const pair=a.type==='group'&&a.n===2;s+=pair?-3000:1800}
+    }
+
+    // 10) 同条件で8脅威：もう一人の平民/貧民は8より弱い単騎を優先。
+    if(richStillPlaying&&(p.role==='平民'||p.role==='貧民')&&!certain){
+      const threat=commonPoorTargets3.some(o=>o.j!==i&&(o.k.certainlyHasEight||(o.k.uncertain&&!o.k.targetPlayedEight)));
+      if(threat){const weakSingle=single&&strength(a.rank,G.revolution)<strength(8,G.revolution);s+=weakSingle?-3000:1800}
+    }
+
+    // 11) 富豪：非富豪の残り3枚以下。8なし/既出ならペア回避、8脅威なら8より弱い単騎回避。確実上がり手は例外。
+    if(p.role==='富豪'&&!certain){
+      const safe=nonRichTargets3.some(o=>o.k.certainlyNoEight||o.k.targetPlayedEight);
+      const threat=nonRichTargets3.some(o=>o.k.certainlyHasEight||(o.k.uncertain&&!o.k.targetPlayedEight));
+      if(safe&&a.type==='group'&&a.n===2)s+=3000;
+      if(threat&&single&&strength(a.rank,G.revolution)<strength(8,G.revolution))s+=3000;
+    }
+    return s;
+  }
+
+  // 最終比較は、これまで指定された優先条件（preferredScore）のみを使用する。
+  // 同点の場合：
+  // ・数字の差が3以内、かつ通常時は2以外、革命中は3以外で縛りを成立させられるなら、その手を優先する。
+  // ・通常時の2、革命中の3でしか縛れない手は縛り優先の対象外。
+  // ・それ以外はゲーム上弱い数字を優先する。
+  // ・それでも同じなら候補生成順。
+  const tieCreatesLock=a=>{
+    if(!G.pile||a.cards.some(c=>c.joker))return false;
+
+    // 縛り優先から除外する最強ランク。
+    // 通常時は2、革命中は3。
+    const excludedLockRank=G.revolution?3:15;
+    if(a.rank===excludedLockRank)return false;
+
+    const prevSig=suitSignature(G.pile);
+    const nowSig=suitSignature(a);
+    return !!(prevSig&&nowSig&&prevSig===nowSig);
+  };
+  const tieRankStrength=a=>strength(a.rank,G.revolution);
+
+  legal=legal
+    .map((a,idx)=>({
+      a,
+      idx,
+      score:preferredScore(a),
+      lock:tieCreatesLock(a)?0:1,
+      rank:tieRankStrength(a)
+    }))
+    .sort((x,y)=>{
+      const scoreDiff=x.score-y.score;
+      if(scoreDiff)return scoreDiff;
+
+      const rankGap=Math.abs(x.rank-y.rank);
+
+      // 数字差3以内：2以外で縛れる手を優先。その後に弱い数字。
+      if(rankGap<=3){
+        const lockDiff=x.lock-y.lock;
+        if(lockDiff)return lockDiff;
+        const rankDiff=x.rank-y.rank;
+        if(rankDiff)return rankDiff;
+      }else{
+        // 数字差4以上：弱い数字を優先。その後に縛り。
+        const rankDiff=x.rank-y.rank;
+        if(rankDiff)return rankDiff;
+        const lockDiff=x.lock-y.lock;
+        if(lockDiff)return lockDiff;
+      }
+
+      return x.idx-y.idx;
+    })
+    .map(x=>x.a);
+
+  // 【優先】A回避条件が成立し、出せる手がそのAだけならパスする。
+  // 空場では大富豪のルール上パス不可。また、確定上がりルートがある場合は絶対条件を優先して出す。
+  // 1対1で相手残り3枚以下は最上位のパス禁止。安全な合法手がある限り、通常パス候補を作らない。
+  const canPassAsAction=canPassAsActionEarly;
+  // ここでも再探索せず、前段で証明済みの確実手だけを見る。
+  const certainNow=legal.filter(a=>certainFinishMoves.has(moveKey(a)));
+
+  // 【優先】残り手札が6組以上で、現在の場に出せる手がJokerを使うものしかない場合はパスする。
+  // 空場・各種絶対パス禁止・確定上がりルートでは発動しない。
+  if(remainingGroups>=6&&canPassAsAction&&!certainNow.length&&legal.length&&legal.every(a=>a.cards.some(c=>c.joker))){
+    if(await cpuTryPass(i))return;
+  }
+
+  // 【まとまり判定】組数が増える手しか残っていない場合はパスする。
+  // 空場や各種の絶対パス禁止局面では、パスせず合法手を出す。
+  if(mustPassForGroupIncrease&&!mustUseS3AgainstJoker&&canPassAsAction&&!certainNow.length){
+    if(await cpuTryPass(i))return;
+  }
+
+  if(canPassAsAction&&!certainNow.length&&legal.length&&legal.every(shouldAvoidAceMove)){
+    if(await cpuTryPass(i))return;
+  }
+
+  // 【優先】残り2枚が異なる数字で、弱い方を合法的に出せない場合に限り、
+  // 強い方を出しても相手が確実に返せるなら、通常時は2以外、革命中は3以外で
+  // 縛りを起こせる手が現れるまではパスする。
+  // 逆に、現在その強い方で許可された縛りを起こせるなら、その縛り手を一般的なパス評価より優先する。
+  let twoCardLockMove=null;
+  if(G.pile&&p.hand.length===2&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess){
+    const [c1,c2]=[...p.hand].sort((x,y)=>strength(x.rank,G.revolution)-strength(y.rank,G.revolution));
+    if(c1.rank!==c2.rank){
+      const weakCard=c1,strongCard=c2;
+      const weakMoves=legal.filter(a=>isSingle(a)&&a.cards[0].id===weakCard.id);
+      const weakCannotBePlayed=weakMoves.length===0;
+      const strongMoves=legal.filter(a=>isSingle(a)&&a.cards[0].id===strongCard.id);
+      const strongDefinitelyAnswerable=strongMoves.length>0&&strongMoves.every(a=>{
+        const opponents=G.players.map((x,j)=>({x,j})).filter(o=>o.j!==i&&!o.x.finished&&!o.x.passed);
+        return opponents.some(o=>{
+          if(CPU_MODE==='strong')return cpuStrongModePlayerHasReply(o.j,a,G.revolution);
+          // 通常モードでは「確実に返せる」と証明できる場合だけ true。
+          return false;
+        });
+      });
+      const prevSig=G.pile?suitSignature(G.pile):null;
+      const lockingStrongMoves=strongMoves.filter(a=>{
+        if(a.cards.some(c=>c.joker))return false;
+        const sig=suitSignature(a);
+        return !!(sig&&prevSig&&sig===prevSig);
+      });
+
+      // 「通常時は2以外、革命中は3以外で縛りを起こせるまでパスする」。
+      // 通常時の2、革命中の3で縛りが成立するだけでは待機を終了しない。
+      const excludedLockRank=G.revolution?3:15;
+      const nonTopRankLockingStrongMoves=lockingStrongMoves.filter(a=>
+        !(a.type==='single'&&!a.cards[0].joker&&a.cards[0].rank===excludedLockRank)
+      );
+      const canCreateAllowedLockNow=nonTopRankLockingStrongMoves.length>0;
+
+      if(weakCannotBePlayed&&strongDefinitelyAnswerable){
+        if(canCreateAllowedLockNow){
+          twoCardLockMove=nonTopRankLockingStrongMoves[0];
+        }else if(canPassAsAction){
+          if(await cpuTryPass(i))return;
+        }
+      }
+    }
+  }
+
+  // 【優先】残り手札が3枚の異なる数字で、一番強いカードしか出せず、
+  // その最強カードも相手に返される可能性がある場合はパスする。
+  // 確実上がりルートは runCpu 前半で即時採用済みのため、ここでは競合しない。
+  if(G.pile&&p.hand.length===3&&canPassAsActionEarly){
+    const ranks=p.hand.map(c=>c.joker?16:c.rank);
+    const allDifferent=new Set(ranks).size===3;
+
+    if(allDifferent){
+      const ordered=[...p.hand].sort(
+        (x,y)=>strength(x.joker?16:x.rank,G.revolution)-strength(y.joker?16:y.rank,G.revolution)
+      );
+      const strongestCard=ordered[2];
+
+      // 「出せる」は単品として現在の場に合法的に返せることを指す。
+      const playableSingles=legal.filter(a=>isSingle(a));
+      const strongestSingleMoves=playableSingles.filter(a=>a.cards[0].id===strongestCard.id);
+      const onlyStrongestPlayable=
+        strongestSingleMoves.length>0 &&
+        playableSingles.every(a=>a.cards[0].id===strongestCard.id);
+
+      if(onlyStrongestPlayable){
+        const mayBeAnswered=strongestSingleMoves.some(a=>{
+          if(CPU_MODE==='strong'){
+            return G.players.some((x,j)=>
+              j!==i&&!x.finished&&!x.passed&&cpuStrongModePlayerHasReply(j,a,G.revolution)
+            );
+          }
+
+          // 通常モードでは、相手が返せないことを確定できない限り
+          // 「返される可能性がある」とみなす。
+          const opponents=G.players
+            .map((x,j)=>({x,j}))
+            .filter(o=>o.j!==i&&!o.x.finished&&!o.x.passed);
+          return opponents.some(o=>!cpuMoveCertainlyUnanswerableByPlayer(i,a,o.j,G.revolution));
+        });
+
+        if(mayBeAnswered){
+          if(await cpuTryPass(i))return;
+        }
+      }
+    }
+  }
+
+  // 【優先】残り手札が
+  // 「8より弱い単品」「単品ではないまとまり」「単品の2」の3組で、
+  // 相手がJokerを持っている時は、単品ではないまとまりを出さない。
+  // 他に出せる手がなければパスする。
+  if(G.pile&&optimalPartition.groupCount===3){
+    const isolatedNaturals=partitionSingles.filter(c=>!c.joker);
+    const singleTwo=isolatedNaturals.filter(c=>c.rank===15);
+    const weakSingles=isolatedNaturals.filter(c=>
+      strength(c.rank,G.revolution)<strength(8,G.revolution)
+    );
+    const nonSingleBundles=optimalPartition.bundles.filter(x=>x.type!=='single');
+
+    const exactThreeGroupShape=
+      partitionSingles.length===2 &&
+      singleTwo.length===1 &&
+      weakSingles.length===1 &&
+      nonSingleBundles.length===1;
+
+    if(exactThreeGroupShape){
+      let opponentHasJoker=false;
+
+      if(CPU_MODE==='strong'){
+        opponentHasJoker=G.players.some((x,j)=>
+          j!==i&&!x.finished&&!x.passed&&x.hand.some(c=>c.joker)
+        );
+      }else{
+        opponentHasJoker=G.players.some((x,j)=>{
+          if(j===i||x.finished||x.passed)return false;
+          const known=cpuKnownOpponentHand(i,j);
+          return !!(known&&known.some(c=>c.joker));
+        });
+      }
+
+      if(opponentHasJoker){
+        const nonBundleMoves=legal.filter(a=>a.type==='single');
+
+        if(nonBundleMoves.length){
+          legal=nonBundleMoves;
+        }else if(canPassAsActionEarly){
+          if(await cpuTryPass(i))return;
+        }
+      }
+    }
+  }
+
+  // パスも通常の行動候補として評価する。
+  // 通常の合法手よりはかなり不利（2500点）だが、強い回避ペナルティが重なる局面ではパスを選べる。
+  // 空場、1対1で相手残り3枚以下、富豪残り3枚以下で平民/貧民の誰もまだ応戦していない局面、
+  // または平民/貧民残り3枚以下に対する富豪の絶対パス禁止局面では候補に入れない。
+  if(canPassAsAction&&!certainNow.length&&legal.length&&!twoCardLockMove){
+    const best=legal[0];
+    const bestScore=preferredScore(best);
+    const passScore=2500;
+    if(passScore<bestScore){
+      if(await cpuTryPass(i))return;
+    }
+  }
+
+  // 残り2枚条件で現在縛りを起こせる場合は、その縛り手を採用する。
+  // 確実上がりルートは runCpu 前半で既に即時採用されているため、ここでは競合しない。
+  if(twoCardLockMove){
+    await playMove(i,twoCardLockMove);
+    return;
+  }
+  if(!legal.length&&!G.pile&&nonFoulLegal.length){
+    legal=[...nonFoulLegal];
+  }
+
+  // 最終フォールバック：
+  // 空場ではパスできないため、絶対条件同士が両立せず「安全な合法手」が0件になった場合でも
+  // ゲームを停止させない。実際にルール上出せる rawLegal から必ず1手選ぶ。
+  // これは通常の優先順位では使わず、nonFoulLegal すら0件の不可避局面だけで発動する。
+  if(!legal.length&&!G.pile&&rawLegal.length){
+    legal=[...rawLegal];
+  }
+
+  if(!legal.length){
+    // 場札がある場合のみ最終的にパス可能。
+    if(await cpuTryPass(i))return;
+
+    // 理論上ここには到達しないが、手番を失わないよう再評価する。
+    G.turn=i;
+    render();
+    setTimeout(runCpu,0);
+    return;
+  }
+  await playMove(i,legal[0]);
+  return;
+  }finally{
+    CPU_RUN_ACTIVE=false;
+  }
+}
+function setupGame(next=false){
+  const old=G;
+  CPU_MODE_LOCKED=false;
+  CPU_RUN_ACTIVE=false;
+  const startsNewSet=!next||old.gameInSet===4;
+  const setNo=!next?1:(startsNewSet?old.setNo+1:old.setNo);
+  const gameInSet=!next?1:(startsNewSet?1:old.gameInSet+1);
+  let blind;
+  if(startsNewSet){
+    const candidates=makeDeck().filter(c=>!c.joker);
+    blind=candidates[Math.floor(Math.random()*candidates.length)];
+  }else blind=old.blind;
+  const deck=shuffle(makeDeck().filter(c=>c.id!==blind.id));
+
+  // 同一セットの第2～4ゲームでは、直前ゲームの確定順位から階級を復元する。
+  // 表示処理などで old.players[].role が誤って変化していても、全員平民になることを防ぐ。
+  let carriedRoles=['平民','平民','平民'];
+  if(!startsNewSet&&next){
+    const prevOrder=(old.gameHistory&&old.gameHistory.length)
+      ?old.gameHistory[old.gameHistory.length-1].order
+      :old.lastOrder;
+    if(prevOrder&&prevOrder.length===3){
+      carriedRoles=[null,null,null];
+      carriedRoles[prevOrder[0]]='富豪';
+      carriedRoles[prevOrder[1]]='平民';
+      carriedRoles[prevOrder[2]]='貧民';
+    }else{
+      carriedRoles=old.players.map(p=>p.role);
+    }
+  }
+
+  const players=[0,1,2].map(i=>{const hand=deck.slice(i*13,(i+1)*13);return {hand,initialHandIds:hand.map(c=>c.id),knownOwnedCardIds:hand.map(c=>c.id),role:startsNewSet?'平民':(next?carriedRoles[i]:'平民'),passed:false,finished:false,foul:false,exchangeGaveNonJoker:false}});
+  const cpuBlindKnowledge=startsNewSet?[null,null,null]:[...((old&&old.cpuBlindKnowledge)||[null,null,null])];
+
+  // セット内だけ持ち越すブラインド推定用の記憶。
+  // 第1ゲームで富豪/平民になったCPUは「出た数字＋スート」を保持し、
+  // 次ゲーム以降の観測と照合してブラインド候補を絞る。
+  // 新セットでは全て破棄する。
+  const cpuBlindRankHistory=startsNewSet
+    ?[[],[],[]]
+    :((old&&old.cpuBlindRankHistory)||[[],[],[]]).map(x=>(x||[]).map(v=>[...(v||[])]));
+  const cpuBlindCandidateIds=startsNewSet
+    ?[null,null,null]
+    :((old&&old.cpuBlindCandidateIds)||[null,null,null]).map(x=>x?[...x]:null);
+  const cpuBlindInferenceActive=startsNewSet
+    ?[false,false,false]
+    :[...((old&&old.cpuBlindInferenceActive)||[false,false,false])];
+
+  G={players,blind,pile:null,pileHistory:[],lead:null,turn:0,revolution:false,lock:null,selected:new Set(),finishers:[],lastOrder:null,lastPoints:[0,0,0],scores:next?[...old.scores]:[0,0,0],gameHistory:next?[...(old.gameHistory||[])]:[],gameNo:next?old.gameNo+1:1,setNo,gameInSet,over:false,resultPending:false,resultModalShown:false,phase:'setup',pendingExchange:null,jokerPlayed:false,spade3Played:false,playedCardIds:[],playedByRecords:[],lastPlayedMove:null,lastClearPassContext:null,cpuBlindKnowledge,cpuBlindRankHistory,cpuBlindCandidateIds,cpuBlindInferenceActive,receivedFlashCardId:null,receivedFlashUntil:0,richFoulCoup:false,commonPoorRevolutionLock:false,commonPoorNoLeadRevolutionOnce:false,turnCount:0,trickPassers:new Set(),eightCutPending:false};
+  $('#log').innerHTML='';
+  addLog(`第${G.setNo}セット・第${G.gameInSet}ゲームの準備を開始しました`);
+  render();
+  if(startsNewSet){
+    // 第1セットは直接開始プレイヤーを選ぶ。第2セット以降は「セット開始」を経由する。
+    if(G.setNo===1)showStarterChoice();
+    else showSetStart();
+  }else{
+    G.turn=old.lastOrder[2];
+    beginExchange(old.lastOrder);
+  }
+}
+function startPreparedGame(){
+  CPU_MODE_LOCKED=true;
+  // 交換・開始画面の状態を完全に解除してからゲームへ入る。
+  $('#modal').classList.remove('show','starterLight','resultLight','exchangeLight');
+  document.body.classList.remove('exchangePhase');
+  G.over=false;
+  G.players.forEach(p=>p.passed=false);
+  G.phase='playing';
+  G.selected.clear();
+  sortHand(G.players[0].hand);
+  addLog(`第${G.setNo}セット・第${G.gameInSet}ゲーム開始。${playerLabel(G.turn)}からです`);
+  render();
+  if(G.receivedFlashCardId){
+    const flashId=G.receivedFlashCardId;
+    const delay=Math.max(0,(G.receivedFlashUntil||0)-Date.now());
+    setTimeout(()=>{if(G.receivedFlashCardId===flashId){G.receivedFlashCardId=null;G.receivedFlashUntil=0;render()}},delay);
+  }
+  if(G.turn!==0)setTimeout(runCpu,500);
+}
+function showSetStart(){
+  G.phase='set-ready';
+  CPU_MODE_LOCKED=false;
+  $('#modal').classList.add('starterLight');
+  const box=$('#modalbox');
+  box.classList.remove('starterChoiceBox','gameResultBox','modeConfirmNarrow','exchangeSevenWide','rulesHalfWidth');
+  box.classList.add('setStartBox');
+  const normalSwitch=(G.setNo>=2&&CPU_MODE==='strong')
+    ?'<button class="btn" id="setNormalBtn">通常</button>'
+    :'';
+  box.innerHTML=`<h2>第${G.setNo}セット</h2>${G.setNo===1?'':'<p>第1ゲームは全員平民で、カード交換は行いません。</p>'}<div class="setStartArea"><button class="btn primary" id="setStartBtn">セット開始</button></div>${normalSwitch?`<div class="controls">${normalSwitch}</div>`:''}`;
+  $('#setStartBtn').onclick=()=>showStarterChoice();
+  if($('#setNormalBtn')){
+    $('#setNormalBtn').onclick=()=>{
+      const box=$('#modalbox');
+      box.innerHTML=`<h2>通常モード</h2><p>CPUを通常モードにしますか？</p><div class="controls"><button class="btn primary" id="setNormalYes">はい</button><button class="btn" id="setNormalNo">いいえ</button></div>`;
+      $('#setNormalYes').onclick=()=>{CPU_MODE='normal';CPU_MODE_LOCKED=false;showSetStart();render()};
+      $('#setNormalNo').onclick=()=>showSetStart();
+    };
+  }
+  openModal();
+}
+function showStarterChoice(){
+  G.phase='starter';
+  $('#modal').classList.add('starterLight');
+  const box=$('#modalbox');
+  box.classList.remove('setStartBox','gameResultBox','modeConfirmNarrow','exchangeSevenWide','rulesHalfWidth');
+  box.classList.add('starterChoiceBox');
+  box.innerHTML=`<h2>開始プレイヤーを選択</h2><p>第${G.setNo}セットの第1ゲームを誰から始めるか選んでください。</p><div class="controls starterChoiceControls"><button class="btn primary starterChoice" data-i="0">あなた</button><button class="btn starterChoice" data-i="1">CPU 1</button><button class="btn starterChoice" data-i="2">CPU 2</button></div>`;
+  box.querySelectorAll('.starterChoice').forEach(btn=>btn.onclick=()=>{
+    G.turn=Number(btn.dataset.i);
+    $('#modal').classList.remove('starterLight');
+    closeModal(false);
+    startPreparedGame();
+  });
+  openModal();
+}
+
+function strongestCardCandidates(hand){
+  const max=Math.max(...hand.map(c=>strength(c.rank,false)));
+  return hand.filter(c=>strength(c.rank,false)===max).sort((a,b)=>(a.suit||'Z').localeCompare(b.suit||'Z'));
+}
+
+
+function optimalHandPartition(hand,revolution=false){
+  // 手札全体を、合法な「まとまり」と単品へ重複なく分割する。
+  // 評価は ①総組数が最少 ②同数なら単品数が最少。
+  // 最大13枚なのでビットDPで厳密探索する。
+  const n=hand.length;
+  if(!n)return {bundles:[],singles:[],groupCount:0,singleCount:0};
+
+  const idToIndex=new Map(hand.map((c,idx)=>[c.id,idx]));
+  const meldByMask=new Map();
+
+  for(const cs of combinations(hand)){
+    if(cs.length<2)continue;
+    for(const a of analysesInState(cs,revolution)){
+      if(a.type==='single')continue;
+      if(a.type==='group'&&a.n<2)continue;
+      if(a.type==='straight'&&a.n<3)continue;
+      let mask=0;
+      for(const c of a.cards){
+        const idx=idToIndex.get(c.id);
+        if(idx===undefined){mask=0;break}
+        mask|=(1<<idx);
+      }
+      if(!mask)continue;
+      // 同じカード集合に複数解釈があっても、分割上は1候補でよい。
+      if(!meldByMask.has(mask))meldByMask.set(mask,{mask,a});
+    }
+  }
+
+  const melds=[...meldByMask.values()];
+  const containing=Array.from({length:n},()=>[]);
+  for(const m of melds){
+    for(let i=0;i<n;i++)if((m.mask>>i)&1)containing[i].push(m);
+  }
+
+  const memo=new Map();
+  function solve(mask){
+    if(mask===0)return {groupCount:0,singleCount:0,bundles:[],singles:[]};
+    if(memo.has(mask))return memo.get(mask);
+
+    let first=0;
+    while(first<n&&((mask>>first)&1)===0)first++;
+
+    // first を単品にする場合
+    const singleRest=solve(mask&~(1<<first));
+    let best={
+      groupCount:singleRest.groupCount+1,
+      singleCount:singleRest.singleCount+1,
+      bundles:singleRest.bundles,
+      singles:[hand[first],...singleRest.singles]
+    };
+
+    // first を含むまとまりを採用する場合
+    for(const m of containing[first]){
+      if((m.mask&mask)!==m.mask)continue;
+      const rest=solve(mask&~m.mask);
+      const cand={
+        groupCount:rest.groupCount+1,
+        singleCount:rest.singleCount,
+        bundles:[m.a,...rest.bundles],
+        singles:rest.singles
+      };
+      if(
+        cand.groupCount<best.groupCount ||
+        (cand.groupCount===best.groupCount&&cand.singleCount<best.singleCount)
+      ){
+        best=cand;
+      }
+    }
+
+    memo.set(mask,best);
+    return best;
+  }
+
+  return solve((1<<n)-1);
+}
+
+
+function isSpade3InOptimalBundle(hand,revolution=false){
+  const s3=hand.find(c=>c.id==='S3');
+  if(!s3)return false;
+  const part=optimalHandPartition(hand,revolution);
+  return part.bundles.some(a=>a.cards.some(c=>c.id==='S3'));
+}
+
+function exchangeProtectedCardIds(hand){
+  // 交換前手札を「組数最少→同数なら単品最少」で最適分割し、
+  // その分割で採用されたまとまりだけを保護する。
+  const part=optimalHandPartition(hand,false);
+  const protectedIds=new Set();
+  for(const a of part.bundles)for(const c of a.cards)protectedIds.add(c.id);
+  return protectedIds;
+}
+
+function richExchangeCard(hand){
+  // まとまりになっていない単品のうち最弱を渡す。8と2は除外。
+  const protectedIds=exchangeProtectedCardIds(hand);
+  const rankCounts={};
+  for(const c of hand)if(!c.joker)rankCounts[c.rank]=(rankCounts[c.rank]||0)+1;
+
+  const candidates=hand.filter(c=>
+    !c.joker &&
+    c.rank!==8 &&
+    c.rank!==15 &&
+    rankCounts[c.rank]===1 &&
+    !protectedIds.has(c.id)
+  );
+
+  if(candidates.length){
+    const ordered=[...candidates].sort((a,b)=>
+      strength(a.rank,false)-strength(b.rank,false) ||
+      (a.suit||'Z').localeCompare(b.suit||'Z')
+    );
+    const lowSingles=ordered.filter(c=>c.rank<=5);
+    // 5以下の単品が複数ある場合は、その中で2番目に弱いものを渡す。
+    if(lowSingles.length>=2)return lowSingles[1];
+    return ordered[0];
+  }
+
+  // 条件を満たす単品がない場合の安全なフォールバック。
+  // まず8・2を除いた非Joker最弱、それもなければ従来の最弱。
+  const fallback=hand.filter(c=>!c.joker&&c.rank!==8&&c.rank!==15);
+  if(fallback.length){
+    return [...fallback].sort((a,b)=>
+      strength(a.rank,false)-strength(b.rank,false) ||
+      (a.suit||'Z').localeCompare(b.suit||'Z')
+    )[0];
+  }
+  return weakestCard(hand);
+}
+function weakestCard(hand){return [...hand].sort((a,b)=>strength(a.rank,false)-strength(b.rank,false)||(a.suit||'Z').localeCompare(b.suit||'Z'))[0]}
+function beginExchange(order){
+  G.phase='exchange';
+  const rich=order[0],poor=order[2],common=order[1];
+  // 交換画面に入る直前にも階級を確定順位から同期する。
+  G.players[rich].role='富豪';
+  G.players[common].role='平民';
+  G.players[poor].role='貧民';
+  render();
+  const poorCandidates=strongestCardCandidates(G.players[poor].hand);
+  const poorCard=poorCandidates[0];
+  if(rich===0){
+    G.pendingExchange={rich,poor,poorCard,poorCandidates,chosen:null};
+    showExchange();
+  }else{
+    const richCard=richExchangeCard(G.players[rich].hand);
+    if(poor===0){
+      G.pendingExchange={rich,poor,poorCard,poorCandidates,richCard};
+      showPoorExchangePreview();
+    }else{
+      completeExchange({rich,poor,poorCard,richCard});
+    }
+  }
+}
+function completeExchange({rich,poor,poorCard,richCard}){
+  // 次ゲームの開始プレイヤーは前ゲームの貧民。
+  // setupGame 側の値に依存せず、交換完了時にも明示して操作不能を防ぐ。
+  G.turn=poor;
+  G.players[rich].hand=G.players[rich].hand.filter(c=>c.id!==richCard.id);
+  G.players[poor].hand=G.players[poor].hand.filter(c=>c.id!==poorCard.id);
+  G.players[rich].hand.push(poorCard);
+  G.players[poor].hand.push(richCard);
+  // CPUは交換で自分が持ったカードも、自分の所持履歴として記憶する。
+  G.players[rich].knownOwnedCardIds=Array.from(new Set([...(G.players[rich].knownOwnedCardIds||[]),poorCard.id]));
+  G.players[poor].knownOwnedCardIds=Array.from(new Set([...(G.players[poor].knownOwnedCardIds||[]),richCard.id]));
+  // 貧民CPUは、自分が富豪へ渡した札がジョーカーだったかを当該ゲーム中記憶する。
+  G.players[poor].exchangeGaveNonJoker=!poorCard.joker;
+  // 人間プレイヤーが交換でもらったカードを、ゲーム開始後約2秒間点滅させる。
+  const receivedByHuman=rich===0?poorCard:(poor===0?richCard:null);
+  G.receivedFlashCardId=receivedByHuman?receivedByHuman.id:null;
+  G.receivedFlashUntil=receivedByHuman?Date.now()+2000:0;
+  sortHand(G.players[0].hand);
+  G.pendingExchange=null;
+  if(rich===0||poor===0){
+    addLog(`${playerLabel(rich)}は ${cardText(richCard)}、${playerLabel(poor)}は ${cardText(poorCard)} を渡して交換しました`);
+    closeModal(false);
+    startPreparedGame();
+  }else{
+    addLog('富豪と貧民のカード交換が完了しました（交換内容は非公開）');
+    closeModal(false);
+    startPreparedGame();
+  }
+}
+function showPoorExchangePreview(){
+  $('#modal').classList.add('exchangeLight');
+  const q=G.pendingExchange;
+  if(!q){closeModal(false);render();return}
+  sortHand(G.players[0].hand);
+
+  // 交換前の人間の手札から「現在の最強数字」を再計算する。
+  // pendingExchange の候補が古くなっていても操作不能にならないようにする。
+  const candidates=strongestCardCandidates(G.players[0].hand);
+  const candidateIds=new Set(candidates.map(c=>c.id));
+  const needsChoice=candidates.length>1;
+  const box=$('#modalbox');
+  box.classList.remove('rulesHalfWidth','setStartBox','starterChoiceBox','gameResultBox','modeConfirmNarrow');
+  box.classList.add('exchangeSevenWide');
+
+  box.innerHTML=`<h2>カード交換前の手札</h2><p>あなたは貧民です。富豪へ渡す最強カードを選んでください。${needsChoice?'最強の数字が複数枚あるため、渡すスートを1枚選択できます。':''}</p><div class="exchangeCards" id="poorExchangeCards"></div><div class="exchangeAction"><button class="btn primary" id="poorExchangeOk" disabled>このカードを交換する</button></div>`;
+
+  let chosen=null;
+  for(const c of G.players[0].hand){
+    const e=renderCard(c);
+    if(candidateIds.has(c.id)){
+      e.onclick=()=>{
+        chosen=c;
+        [...$('#poorExchangeCards').children].forEach(x=>
+          x.classList.toggle('selected',x.dataset.id===c.id)
+        );
+        $('#poorExchangeOk').disabled=false;
+      };
+    }else{
+      e.style.opacity='.45';
+      e.style.cursor='default';
+    }
+    $('#poorExchangeCards').append(e);
+  }
+
+  $('#poorExchangeOk').onclick=()=>{
+    if(!chosen)return;
+    const current=G.pendingExchange;
+    if(!current)return;
+    closeModal(false);
+    completeExchange({
+      rich:current.rich,
+      poor:current.poor,
+      poorCard:chosen,
+      richCard:current.richCard
+    });
+  };
+  openModal();
+}
+
+function showExchange(){
+  $('#modal').classList.add('exchangeLight');
+  const q=G.pendingExchange;
+  sortHand(G.players[0].hand);
+  G.selected.clear();
+  const box=$('#modalbox');
+  box.classList.remove('rulesHalfWidth','setStartBox','starterChoiceBox','gameResultBox','modeConfirmNarrow');
+  box.classList.add('exchangeSevenWide');
+  box.innerHTML=`<h2>カード交換</h2><p>あなたは富豪です。まず、現在の手札から貧民へ渡すカードを1枚選んでください。選択後に、貧民の最強カードを受け取ります。</p><div class="exchangeCards" id="exchangeCards"></div><div class="exchangeAction"><button class="btn primary" id="exchangeOk" disabled>このカードを交換する</button></div>`;
+  let chosen=null;
+  for(const c of G.players[0].hand){
+    const e=renderCard(c);
+    e.onclick=()=>{
+      chosen=c;
+      [...$('#exchangeCards').children].forEach(x=>x.classList.toggle('selected',x.dataset.id===c.id));
+      $('#exchangeOk').disabled=false;
+    };
+    $('#exchangeCards').append(e);
+  }
+  $('#exchangeOk').onclick=()=>{
+    if(!chosen)return;
+    closeModal();
+    completeExchange({rich:q.rich,poor:q.poor,poorCard:q.poorCard,richCard:chosen});
+  };
+  openModal();
+}
+
+
+
+function showBlind(){
+  const box=$('#modalbox');box.innerHTML=`<h2>第${G.setNo}セットのブラインドカード</h2><p>このカードは第1ゲームから第4ゲームまで、すべての配札から除外されていました。</p><div class="exchangeCards" id="blindCard"></div><div class="controls"><button class="btn primary" id="afterBlindNext">次のセット</button><button class="btn" id="afterBlindClose">盤面を見る</button></div>`;
+  $('#blindCard').append(renderCard(G.blind));$('#afterBlindNext').onclick=()=>{closeModal(false);setupGame(true)};$('#afterBlindClose').onclick=closeModal;openModal()
+}
+function showResult(order){
+  const setFinished=G.gameInSet===4,box=$('#modalbox'),lastHistory=(G.gameHistory||[]).at(-1),coup=!!(lastHistory&&lastHistory.coup),richFoulCoup=!!(lastHistory&&lastHistory.richFoulCoup);
+  $('#modal').classList.add('resultLight');
+  box.classList.remove('setStartBox','starterChoiceBox','modeConfirmNarrow','exchangeSevenWide','rulesHalfWidth');
+  box.classList.add('gameResultBox');
+  // 結果画面は表示専用。ここでは現在の階級を変更しない。
+  // 新セットの第1ゲームを生成する setupGame(true) 側でのみ全員平民へ初期化する。
+  const setRows=(G.gameHistory||[]).filter(h=>h.setNo===G.setNo);
+  const setTotals=[0,1,2].map(i=>setRows.reduce((sum,h)=>sum+h.points[i],0));
+  const setTable=setFinished?`<div class="panel scoreHistory setResultScoreScroll"><h3>第${G.setNo}セット・ゲーム別得点</h3><table><thead><tr><th>ゲーム</th><th>あなた</th><th>CPU 1</th><th>CPU 2</th></tr></thead><tbody>${setRows.map(h=>`<tr><td>第${h.gameInSet}ゲーム${historyNote(h)}</td><td>+${h.points[0]}</td><td>+${h.points[1]}</td><td>+${h.points[2]}</td></tr>`).join('')}<tr class="setTotal"><td>セット合計</td><td>${setTotals[0]}点</td><td>${setTotals[1]}点</td><td>${setTotals[2]}点</td></tr></tbody></table></div>`:'';
+  box.innerHTML=`<h2>${setFinished?`第${G.setNo}セット終了（第${G.gameInSet}ゲーム）`:`第${G.setNo}セット・第${G.gameInSet}ゲーム終了`}</h2>${setTable}${richFoulCoup?'<p><b>富豪の反則上がりにより、反則上がり・都落ちとなりました。</b></p>':coup?'<p class="coupMessage"><b>都落ちが成立しました。</b></p>':''}<div class="resultRanks">
+  <div><span class="resultPlace">1位：</span><span class="resultName"><b>${playerLabel(order[0])}</b></span><span class="resultRole">富豪</span><span class="resultPoints">（+${G.lastPoints[order[0]]}点）</span></div>
+  <div><span class="resultPlace">2位：</span><span class="resultName"><b>${playerLabel(order[1])}</b></span><span class="resultRole">平民</span><span class="resultPoints">（+${G.lastPoints[order[1]]}点）</span></div>
+  <div><span class="resultPlace">3位：</span><span class="resultName"><b>${playerLabel(order[2])}</b></span><span class="resultRole">貧民</span><span class="resultPoints">（+${G.lastPoints[order[2]]}点）</span></div>
+</div><p><b>累計得点</b><br>あなた：${G.scores[0]}点／CPU 1：${G.scores[1]}点／CPU 2：${G.scores[2]}点</p>${setFinished?'<p><b>4ゲームが終了しました。</b> このセットのブラインドカードを確認できます。</p>':''}<div class="resultActions${setFinished?' setFinishedActions':''}"><button class="btn primary" id="nextGame">${setFinished?'次のセット':'次のゲーム'}</button>${setFinished?'<button class="btn" id="showBlindResult">ブラインドカードを見る</button>':''}<button class="btn" id="closeResult">盤面を見る</button><button class="btn ${CPU_MODE==='normal'?'resultStrongBtn':''}" id="resultModeSwitch">${CPU_MODE==='strong'?'通常':'最強'}</button></div>`;
+  $('#nextGame').onclick=()=>{closeModal(false);setupGame(true)};
+  if(setFinished)$('#showBlindResult').onclick=showBlind;
+  $('#closeResult').onclick=closeModal;
+  $('#resultModeSwitch').onclick=()=>{
+    const target=CPU_MODE==='strong'?'normal':'strong';
+    const label=target==='strong'?'最強':'通常';
+    box.innerHTML=target==='strong'
+      ?`<h2>最強モード</h2><p>CPUを最強モードにしますか？<br>1手出すまでに5秒ほどかかることがあります。<br><span class="modeLockNote">※ゲームが終了するまで切り替えられません。</span></p><div class="controls"><button class="btn primary" id="resultModeYes">はい</button><button class="btn" id="resultModeNo">いいえ</button></div>`
+      :`<h2>通常モード</h2><p>CPUを通常モードにしますか？</p><div class="controls"><button class="btn primary" id="resultModeYes">はい</button><button class="btn" id="resultModeNo">いいえ</button></div>`;
+    $('#resultModeYes').onclick=()=>{
+      CPU_MODE=target;
+      CPU_MODE_LOCKED=false;
+      showResult(order);
+      render();
+    };
+    $('#resultModeNo').onclick=()=>showResult(order);
+  };
+
+  openModal();
+  G.resultModalShown=true;
+  G.resultPending=false;
+  render()
+}
+function openModal(){$('#modal').classList.add('show')}
+function closeModal(restoreSetup=true){
+  $('#modal').classList.remove('show');$('#modal').classList.remove('starterLight');$('#modal').classList.remove('resultLight');$('#modal').classList.remove('exchangeLight');$('#modalbox').classList.remove('modeConfirmNarrow','setStartBox','starterChoiceBox','gameResultBox','exchangeSevenWide','rulesHalfWidth');
+  if(!restoreSetup)return;
+  // 準備中にルール／CPU設定などを閉じた場合、開始操作を復元する。
+  setTimeout(()=>{
+    if(G.phase==='set-ready')showSetStart();
+    else if(G.phase==='starter')showStarterChoice();
+  },0);
+}
+$('#normalModeBtn').onclick=()=>{
+  // 透視中は表示だけ通常へ戻す。CPU最強モードは解除しない。
+  if(VIEW_MODE==='spy'){
+    VIEW_MODE='normal';
+    render();
+    restorePhaseModalAfterViewMode();
+    return;
+  }
+
+  // 最強モードのゲーム終了後のみ、CPUを通常へ戻せる。
+  if(CPU_MODE==='strong'&&G.over){
+    const box=$('#modalbox');
+    box.innerHTML=`<h2>通常モード</h2><p>CPUを通常モードにしますか？</p><div class="controls"><button class="btn primary" id="cpuNormalYes">はい</button><button class="btn" id="cpuNormalNo">いいえ</button></div>`;
+    $('#cpuNormalYes').onclick=()=>{CPU_MODE='normal';CPU_MODE_LOCKED=false;closeModal(false);render()};
+    $('#cpuNormalNo').onclick=()=>{closeModal(false);render()};
+    openModal();
+    return;
+  }
+
+  VIEW_MODE='normal';
+  render();
+  if(G.phase==='set-ready')showSetStart();
+  else if(G.phase==='starter')showStarterChoice();
+  else if(G.phase==='exchange'&&G.pendingExchange){
+    if(G.pendingExchange.rich===0)showExchange();
+    else if(G.pendingExchange.poor===0)showPoorExchangePreview();
+    else closeModal(false);
+  }else closeModal(false);
+};
+
+$('#strongModeBtn').onclick=()=>{
+  if(CPU_MODE==='strong')return;
+  if(!canSwitchToStrongNow())return;
+  const box=$('#modalbox');
+  box.classList.remove('setStartBox','starterChoiceBox','gameResultBox','exchangeSevenWide','rulesHalfWidth');
+  box.classList.add('modeConfirmNarrow');
+  box.innerHTML=`<h2>最強モード</h2><p>CPUを最強モードにしますか？<br>1手出すまでに5秒ほどかかることがあります。<br><span class="modeLockNote">※ゲームが終了するまで切り替えられません。</span></p><div class="controls"><button class="btn primary" id="strongYes">はい</button><button class="btn" id="strongNo">いいえ</button></div>`;
+  $('#strongYes').onclick=()=>{
+    CPU_MODE='strong';
+    CPU_MODE_LOCKED=G.phase==='playing'&&!G.over;
+    closeModal(false);
+    render();
+    restorePhaseModalAfterViewMode();
+  };
+  $('#strongNo').onclick=()=>{restorePhaseModalAfterViewMode()};
+  openModal();
+};
+function restorePhaseModalAfterViewMode(){
+  // 透視確認が、ゲーム開始前・交換中などの必須操作モーダルを上書きした場合に復元する。
+  if(G.phase==='set-ready'){showSetStart();return}
+  if(G.phase==='starter'){showStarterChoice();return}
+  if(G.phase==='exchange'){
+    if(!G.pendingExchange){closeModal(false);render();return}
+    const q=G.pendingExchange;
+    if(q.rich===0){showExchange();return}
+    if(q.poor===0){showPoorExchangePreview();return}
+  }
+  closeModal(false);
+  render();
+}
+$('#spyModeBtn').onclick=()=>{
+  if(VIEW_MODE==='spy'){render();return}
+  const box=$('#modalbox');
+  box.classList.remove('setStartBox','starterChoiceBox','gameResultBox','exchangeSevenWide','rulesHalfWidth');
+  box.classList.add('modeConfirmNarrow');
+  box.innerHTML=`<h2>透視モード</h2><p>相手の手札を透視しますか？</p><div class="controls"><button class="btn primary" id="spyYes">はい</button><button class="btn" id="spyNo">いいえ</button></div>`;
+  $('#spyYes').onclick=()=>{VIEW_MODE='spy';render();restorePhaseModalAfterViewMode()};
+  $('#spyNo').onclick=()=>{restorePhaseModalAfterViewMode()};
+  openModal();
+};
+$('#playBtn').onclick=()=>{if(G.phase!=='playing'||G.turn!==0||G.players[0].passed)return;const cs=G.players[0].hand.filter(c=>G.selected.has(c.id)),a=chooseAnalysis(cs);if(a)playMove(0,a)};
+$('#passBtn').onclick=async()=>{
+  if(G.phase!=='playing'||G.turn!==0||!G.pile||G.players[0].passed)return;
+  G.players[0].passed=true;
+  if(!G.trickPassers)G.trickPassers=new Set();
+  G.trickPassers.add(0);
+  G.selected.clear();
+  playSound('pass');
+  addLog('あなた：パス');
+  render();
+  if(passWillClearPile())await sleep(900);
+  if(!checkFlow())G.turn=nextActive(0);
+  render();
+  setTimeout(runCpu,400);
+};
+$('#clearBtn').onclick=()=>{G.selected.clear();render()};$('#blindBtn').onclick=()=>{if(G.over&&G.gameInSet===4)showBlind()};$('#nextBtn').onclick=()=>{if(G.over)setupGame(true)};$('#newBtn').onclick=()=>{if(confirm('戦績を破棄して最初から始めますか？')){CPU_MODE='normal';VIEW_MODE='normal';CPU_MODE_LOCKED=false;setupGame(false)}};
+$('#rulesBtn').onclick=()=>{const box=$('#modalbox');box.classList.remove('exchangeSevenWide');box.classList.add('rulesHalfWidth');box.innerHTML=`<h2>採用ルール</h2><div class="rules"><p><b>構成：</b>3人、通常札39枚（♠♥♦の3スート）＋ジョーカー1枚、ブラインド1枚、各13枚。ブラインドカードは4ゲームを1セットとして固定し、第4ゲーム終了後に確認できます。</p><p><b>強さ：</b>3＜4＜…＜A＜2＜JK。革命中は数字が逆転し、JKは常に最強。</p><p><b>出し方：</b>1枚、同ランク2枚以上、同一スートで3枚以上の階段。ジョーカーは不足カードの代用可。</p><p><b>特殊ルール：</b>3枚以上の同ランク出しで革命、8切り、スペ3返し、スート縛り（ジョーカーは縛りの不足スートを代用可能）、最強階段。</p><p><b>最強階段：</b>通常時におけるA-2-JKの3枚階段、ならびに革命時における3-4-JKの3枚階段は最強階段とします。最強階段が出された場合、場は直ちに流れます。</p><p><b>パス：</b>一度パスすると場が流れるまで復帰不可。場が流れて空場になった直後はパス不可。</p><p><b>反則上がり：</b>通常時の2、革命時の3、ジョーカーを含む手での上がり。8は階段以外では絶対に上がれず、スペード3は単騎上がりが反則です。</p><p><b>セット開始：</b>4ゲームを1セットとします。第1セットは開始プレイヤーを直接選び、第2セット以降は「セット開始」を押した後に選択します。新セットの第1ゲームは全員平民で、カード交換は行いません。</p><p><b>得点：</b>通常ゲームは富豪6点、平民3点、貧民0点。各セットの第4ゲームのみ富豪8点。得点は最初からやり直すまで累積し、ゲーム別得点も表示します。</p><p><b>都落ち：</b>前ゲームの富豪がまだ上がっていない状態で他のプレイヤーが合法的に上がると、その人が富豪、残る1人が平民、旧富豪が貧民となり、その時点でゲーム終了です。</p><p><b>効果音：</b>出札、パス、8切り、革命・革命返しで異なる音が鳴ります。画面上部のスライダーで音量を調節できます。</p><p><b>カード交換：</b>第2～4ゲームでは富豪と貧民が1枚交換します。富豪は相手のカードを受け取る前に渡す1枚を選びます。貧民の最強ランクが複数枚ある場合、貧民本人は渡すスートを選べます。交換完了後にゲームを開始し、前ゲームの貧民から始めます。新セットの第1ゲームは交換しません。</p><p class="small"></p></div><button class="btn" id="rulesClose">閉じる</button>`;$('#rulesClose').onclick=closeModal;openModal()};
+$('#modal').onclick=e=>{if(e.target===$('#modal')&&G.phase!=='exchange'&&G.phase!=='starter'&&G.phase!=='set-ready')closeModal()};
+const volumeSlider=$('#volumeSlider'),volumeValue=$('#volumeValue');volumeSlider.value=Math.round(SOUND_VOLUME*100);volumeValue.textContent=`${volumeSlider.value}%`;volumeSlider.oninput=()=>{SOUND_VOLUME=Number(volumeSlider.value)/100;volumeValue.textContent=`${volumeSlider.value}%`;localStorage.setItem('daifugoSoundVolume',String(SOUND_VOLUME));};
+setupGame(false);
+</script>
+</body>
+</html>
