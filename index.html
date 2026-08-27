@@ -26,6 +26,7 @@
 
 
 
+
 :root{
   --bg:#0b3d2e;
   --panel:#123f35;
@@ -1075,6 +1076,119 @@ body.exchangePhase .top{
     min-width:0;
     max-width:min(600px,calc(100vw - 24px));
   }
+
+}
+
+/* ===== Orientation-aware mobile/tablet layout ===== */
+@media (max-width:1024px) and (orientation:portrait){
+  .table{
+    grid-template-columns:1fr;
+    grid-template-rows:auto auto auto;
+    gap:8px;
+  }
+  #p1{grid-column:1;grid-row:1}
+  #p2{grid-column:1;grid-row:2}
+  .center{grid-column:1;grid-row:3}
+}
+
+@media (max-width:1024px) and (orientation:landscape){
+  .table{
+    grid-template-columns:.58fr 1fr .58fr;
+    grid-template-rows:auto;
+    gap:8px;
+    align-items:center;
+  }
+  #p1{grid-column:1;grid-row:1}
+  .center{grid-column:2;grid-row:1}
+  #p2{grid-column:3;grid-row:1}
+
+  #p1,#p2{
+    min-height:48px;
+    padding:6px 9px;
+  }
+
+  .center{
+    min-height:138px;
+    height:138px;
+    padding:4px 7px;
+  }
+  .pile{
+    min-height:123px;
+    height:123px;
+  }
+
+  .cpuInfoRow{
+    grid-template-columns:max-content max-content max-content 3em 52px;
+    column-gap:12px;
+  }
+
+  .cpuNameText,
+  .cpuModeLabel,
+  .player .role,
+  .player .count,
+  .player .small{
+    font-size:15px;
+  }
+
+  .hand{
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:flex-start;
+    align-content:flex-start;
+    gap:5px;
+  }
+  .hand .card{
+    flex:0 0 58px;
+    width:58px;
+    max-width:58px;
+    height:85px;
+    min-height:85px;
+    aspect-ratio:auto;
+    padding:5px;
+    font-size:16px;
+  }
+  .hand .card .suit{font-size:23px}
+
+  .pile-play .card{
+    width:58px;
+    height:84px;
+    min-width:58px;
+    min-height:84px;
+    padding:6px;
+    border-width:2px;
+    border-radius:9px;
+    font-size:14px;
+  }
+  .pile-play .card .suit{font-size:22px}
+
+  .exchangeCards .card{
+    flex:0 0 58px;
+    width:58px;
+    max-width:58px;
+    height:84px;
+    min-height:84px;
+    aspect-ratio:auto;
+    padding:6px;
+    font-size:14px;
+  }
+  .exchangeCards .card .suit{font-size:22px}
+
+  .opponentHand{
+    max-width:100%;
+  }
+  .spyMode .opponentHand{
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+
+  #modalbox.starterChoiceBox{
+    width:auto;
+    max-width:min(520px,calc(100vw - 32px));
+  }
+  #modalbox.modeConfirmNarrow,
+  #modalbox.gameResultBox{
+    max-width:min(650px,calc(100vw - 32px));
+  }
 }
 
 /* ===== Narrow phone ===== */
@@ -1154,6 +1268,7 @@ body.exchangePhase .top{
     font-size:14px;
   }
 }
+
 
 
 
@@ -5502,6 +5617,18 @@ $('#spyModeBtn').onclick=()=>{
   $('#spyNo').onclick=()=>{restorePhaseModalAfterViewMode()};
   openModal();
 };
+
+let layoutResizeTimer=null;
+function refreshLayoutAfterResize(){
+  clearTimeout(layoutResizeTimer);
+  layoutResizeTimer=setTimeout(()=>{
+    if(!G)return;
+    render();
+  },120);
+}
+window.addEventListener('resize',refreshLayoutAfterResize);
+window.addEventListener('orientationchange',refreshLayoutAfterResize);
+
 $('#playBtn').onclick=()=>{if(G.phase!=='playing'||G.turn!==0||G.players[0].passed)return;const cs=G.players[0].hand.filter(c=>G.selected.has(c.id)),a=chooseAnalysis(cs);if(a)playMove(0,a)};
 $('#passBtn').onclick=async()=>{
   if(G.phase!=='playing'||G.turn!==0||!G.pile||G.players[0].passed)return;
