@@ -296,7 +296,11 @@ button{font:inherit}
   font-weight:inherit;
   letter-spacing:normal;
 }
-.opponentHand .card.spyCard.joker > span:first-child{max-width:100%}
+.opponentHand .card.spyCard.joker > span:first-child{
+  max-width:100%;
+  font-size:11px;
+  letter-spacing:-.2px;
+}
 .opponentHand .card.spyCard.joker > span:last-child{bottom:3px}
 
 /* ===== Center / pile ===== */
@@ -1192,6 +1196,20 @@ body.exchangePhase .top{
 }
 
 /* ===== Narrow phone ===== */
+@media (max-width:768px) and (orientation:landscape){
+  .cpuInfoRow{
+    grid-template-columns:max-content max-content 44px;
+    grid-template-rows:auto auto;
+    column-gap:10px;
+    row-gap:3px;
+  }
+  .cpuNameText{grid-column:1;grid-row:1}
+  .cpuModeLabel{grid-column:2;grid-row:1}
+  .player .role{grid-column:1;grid-row:2}
+  .player .count{grid-column:2;grid-row:2}
+  .player .small{grid-column:3;grid-row:2}
+}
+
 @media (max-width:480px){
   .top > .controls > .btn,
   .top > .controls > .volumeControl{
@@ -2218,7 +2236,7 @@ function cpuStrongModeOpponents(i){
   if(CPU_MODE!=='strong')return null;
   return G.players.map((p,j)=>({p,j})).filter(x=>x.j!==i&&!x.p.finished);
 }
-function cpuStrongModePlayerHasReply(target,a,revolutionBefore){
+function cpuStrongModePlayerHasReply(target,a,revolutionBefore,forbidSingleJoker=false){
   if(CPU_MODE!=='strong'||target<0||!G.players[target]||G.players[target].finished)return false;
   const hand=G.players[target].hand;
 
@@ -2242,6 +2260,12 @@ function cpuStrongModePlayerHasReply(target,a,revolutionBefore){
   };
   for(const cs of combinations(hand)){
     for(const cand of analysesInState(cs,responseRev)){
+      if(
+        forbidSingleJoker&&
+        cand.type==='single'&&
+        cand.cards.length===1&&
+        cand.cards[0].joker
+      )continue;
       if(canBeat(cand))return true;
     }
   }
@@ -2322,12 +2346,17 @@ function cpuMoveCertainlyUnanswerableByPlayer(i,a,target,revolutionBefore){
   // unseen のどこかに返しが存在する限り「確定パス」とはしない。
   const unseen=makeDeck().filter(c=>!unavailable.has(c.id));
   const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
-  const unseenJoker=unseen.some(c=>c.joker);
+  const rawUnseenJoker=unseen.some(c=>c.joker);
+  // 確実手順探索専用の前提：この手を出した後も3人全員が10枚以上なら、
+  // 相手はJokerを単品の応手としては出さない。
+  // group/straightへのJoker使用可能性は従来どおり残す。
+  const unseenJoker=rawUnseenJoker;
+  const unseenSingleJoker=rawUnseenJoker&&!allThreeTenOrMore;
   const natural=unseen.filter(c=>!c.joker);
 
   if(a.type==='single'){
     if(a.cards.length===1&&a.cards[0].joker)return !unseen.some(c=>c.id==='S3');
-    if(unseenJoker)return false;
+    if(unseenSingleJoker)return false;
     return !natural.some(c=>strength(c.rank,responseRev)>strength(a.rank,responseRev));
   }
   if(a.type==='group'){
@@ -2373,10 +2402,19 @@ function moveClearsPileWithoutOpponent(a,revolution){
   const strongestStraight=isStrongestStraightMove(a,revolution);
   return eightCut||strongestStraight;
 }
-function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore){
+function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=null){
+  const ownAfter=ownCountAfterMove==null
+    ?Math.max(0,G.players[i].hand.length-a.n)
+    :ownCountAfterMove;
+  const allThreeTenOrMore=G.players.every((p,j)=>
+    (j===i?ownAfter:p.hand.length)>=10
+  );
+
   if(CPU_MODE==='strong'){
     const opponents=cpuStrongModeOpponents(i)||[];
-    return opponents.every(o=>!cpuStrongModePlayerHasReply(o.j,a,revolutionBefore));
+    return opponents.every(o=>!cpuStrongModePlayerHasReply(
+      o.j,a,revolutionBefore,allThreeTenOrMore
+    ));
   }
   // 場が流れた直後にこの手を出したと仮定し、CPUの記憶から相手が絶対に返せないかを保守的に証明する。
   // 自分の現手札・既出札・判明済みブラインドは相手が持ち得ない。交換で手放した過去の自札は除外しない。
@@ -2512,7 +2550,7 @@ function certainRunOutMinSteps(i,cards,revolution,memo=new Map()){
     for(const a of analysesInState(cs,revolution)){
       if(cpuIsUnsafeSinglePlusJokerPairInHand(i,cards,a,revolution))continue;
       const clears=moveClearsPileWithoutOpponent(a,revolution);
-      const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution);
+      const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution,cards.length-a.n);
       if(!clears&&!unanswerable)continue;
       const used=new Set(a.cards.map(c=>c.id));
       const remaining=cards.filter(c=>!used.has(c.id));
@@ -2814,7 +2852,7 @@ function cpuStage1FixedPartitionCertainRoute(i,rootLegal,budget=null){
       base=analysesInState(cards,revolution).filter(a=>a.cards.length===cards.length).map(a=>({
         a,
         clears:moveClearsPileWithoutOpponent(a,revolution),
-        unanswerable:cpuCanProveLeadMoveUnanswerable(i,a,revolution),
+        unanswerable:cpuCanProveLeadMoveUnanswerable(i,a,revolution,remainingHand.length-a.n),
         nextRev:a.revolution?!revolution:revolution,
         foul:isFoulFinishInState(a,revolution)
       }));
@@ -2928,7 +2966,7 @@ function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLef
       if(seen.has(k))continue;
       seen.add(k);
       const clears=moveClearsPileWithoutOpponent(a,revolution);
-      const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution);
+      const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution,cards.length-a.n);
       if(clears||unanswerable)candidates.push(a);
     }
   }
@@ -3153,9 +3191,15 @@ function certainFullResponseWin(s,root,rootDepth,budget,memo){
 
   const i=s.turn;
   const allMoves=certainSimLegalMoves(s,i);
+  const allThreeTenOrMore=s.players.every(p=>p.hand.length>=10);
   const moves=i===root
     ?allMoves.filter(a=>!cpuIsUnsafeSinglePlusJokerPairInHand(root,s.players[root].hand,a,s.revolution))
-    :allMoves;
+    :allMoves.filter(a=>!(
+      allThreeTenOrMore&&
+      a.type==='single'&&
+      a.cards.length===1&&
+      a.cards[0].joker
+    ));
   const canPass=!!s.pile;
 
   if(i===root){
@@ -3448,13 +3492,17 @@ async function runCpu(){
     ?[...safeNonFoulLegal]
     :[...nonFoulLegal];
 
+  // 同一CPU手番・同一手札・同一革命状態では最適分割は不変なので、
+  // runCpu() 内では1回だけ計算し、後続の全判定で共有する。
+  const currentOptimalPartition=optimalHandPartition(p.hand,G.revolution);
+
   // 【最上位・絶対】残り手札が3組以下になった時は、確実勝利探索より先に
   // 「相手に勝ちを強制される入口」を最弱のまとまりから終局まで全探索する。
   // 見つかった入口はこの手番中記憶し、後続の確実勝利探索・通常判断から除外する。
   const certainLossMoveKeys=new Set();
   let allCurrentMovesCertainLoss=false;
   {
-    const currentGroups=optimalHandPartition(p.hand,G.revolution).groupCount;
+    const currentGroups=currentOptimalPartition.groupCount;
 
     if(currentGroups<=3&&legal.length&&cpuCanUseFullResponseSearch(i)){
       const lossOrdered=orderCertainLossMovesForHand(p.hand,legal,G.revolution);
@@ -3484,7 +3532,7 @@ async function runCpu(){
   // 相手がパスしない限り確実に負ける場合は、まとまりを崩して1枚で出す。
   // 既存の確実敗北探索で、現在出せるすべてのまとまりが敗北と証明された場合だけ発動する。
   {
-    const partitionNow=optimalHandPartition(p.hand,G.revolution);
+    const partitionNow=currentOptimalPartition;
     const hasNonEightSingle=partitionNow.singles.some(c=>c.joker||c.rank!==8);
 
     // 最適分割に含まれる「まとまり」のうち、現在合法に出せるものだけを対象にする。
@@ -3555,7 +3603,7 @@ async function runCpu(){
       const mineCandidateLegal=legal.filter(a=>
         !certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
       );
-      const mineGroupCount=optimalHandPartition(p.hand,G.revolution).groupCount;
+      const mineGroupCount=currentOptimalPartition.groupCount;
       let myCertainFirst=null;
 
       if(mineGroupCount>=7){
@@ -3660,7 +3708,7 @@ async function runCpu(){
       legal.filter(a=>!certainLossMoveKeys.has(moveKey(a))),
       G.revolution
     );
-    const stage1PreservingOnly=optimalHandPartition(p.hand,G.revolution).groupCount>=7;
+    const stage1PreservingOnly=currentOptimalPartition.groupCount>=7;
     const orderedStage1=stage1PreservingOnly
       ?orderCertainMovesForHand(
           p.hand,
@@ -3747,7 +3795,7 @@ async function runCpu(){
         for(const a of remainingEntries){
           const k=moveKey(a);
           attemptedThisDepth.add(k);
-          const groups=optimalHandPartition(p.hand,G.revolution).groupCount;
+          const groups=currentOptimalPartition.groupCount;
           const headsUpDepth=cpuFullInfoHeadsUpDepth(i,groups);
           let d=headsUpDepth!==null
             ?headsUpDepth
@@ -3914,10 +3962,10 @@ async function runCpu(){
     }
   }
 
-  // 【絶対】相手の単騎への追従で、残り4枚以下の人が誰もいない間はジョーカーを出さない。
-  // ただしCPU自身が4枚以下なら使用可。ほかの誰かが4枚以下の場合も使用可。
-  const anyoneAtFourOrLess=G.players.some(x=>!x.finished&&x.hand.length<=4);
-  if(G.pile&&G.pile.type==='single'&&!anyoneAtFourOrLess&&p.hand.length>4){
+  // 【絶対】相手の単騎への追従で、残り5枚以下の人が誰もいない間はジョーカーを出さない。
+  // ただしCPU自身が5枚以下なら使用可。ほかの誰かが5枚以下の場合も使用可。
+  const anyoneAtFiveOrLess=G.players.some(x=>!x.finished&&x.hand.length<=5);
+  if(G.pile&&G.pile.type==='single'&&!anyoneAtFiveOrLess&&p.hand.length>5){
     legal=legal.filter(a=>!a.cards.some(c=>c.joker));
   }
 
@@ -3926,7 +3974,7 @@ async function runCpu(){
   // 絶対禁止ではなく、preferredScore で強いペナルティを与える。
 
   // 【絶対】誰もパスしておらず、相手がスペード3を持っている可能性がある時はJoker単騎を出さない。
-  // ただし、現在カードを出した相手の残り手札が4枚以下で、その場札より強いものを自分が持っていない時は、
+  // ただし、現在カードを出した相手の残り手札が5枚以下で、その場札より強いものを自分が持っていない時は、
   // 完全情報なら相手の実手札を見て判断し、完全情報でない時だけ50%の確率でJoker単騎を許可する。
   // 自分が平民で、現在カードを出した相手が貧民の場合はこの例外を適用せずJokerを出さない。
   const anyOpponentMayHaveS3=(()=>{
@@ -3941,7 +3989,7 @@ async function runCpu(){
   const shortLeaderNoStrongerInOwnHand=(()=>{
     if(!G.pile||G.pile.type!=='single'||G.lead===null||G.lead===i)return false;
     const leader=G.players[G.lead];
-    if(!leader||leader.finished||leader.hand.length>4)return false;
+    if(!leader||leader.finished||leader.hand.length>5)return false;
     const pileRank=G.pile.rank;
     if(pileRank===16)return false;
     const ownStronger=p.hand.some(c=>{
@@ -4276,7 +4324,7 @@ async function runCpu(){
 
   // 【なるべく】まとまり判定は手札全体を重複なく最適分割する。
   // ①組数が最少、②同数なら単品数が最少、の順で採用する。
-  const optimalPartition=optimalHandPartition(p.hand,G.revolution);
+  const optimalPartition=currentOptimalPartition;
 
   // 【優先】1枚しかない数字＋Jokerで作るペアについて、
   // 相手がそれより強い自然ペアを持っている可能性がある場合は、そのJokerペアを出さず、
