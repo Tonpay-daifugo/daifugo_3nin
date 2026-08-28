@@ -2449,11 +2449,54 @@ function hasTwoOrMorePlayersWhoHaveNeverPlayed(){
   return count>=2;
 }
 
+function cpuOpponentMayHaveStrongerNaturalPairThan(i,rank,revolution){
+  const threshold=strength(rank,revolution);
+
+  if(CPU_MODE==='strong'){
+    return G.players.some((op,j)=>{
+      if(j===i||op.finished)return false;
+      const counts={};
+      for(const c of op.hand){
+        if(!c.joker)counts[c.rank]=(counts[c.rank]||0)+1;
+      }
+      return RANKS.some(rk=>
+        strength(rk,revolution)>threshold &&
+        (counts[rk]||0)>=2
+      );
+    });
+  }
+
+  // 通常モードでは、自分が把握済みの札以外を未知札として扱う。
+  const mem=cpuMemory(i);
+  const unavailable=new Set([...mem.current,...mem.played]);
+  if(mem.blindId)unavailable.add(mem.blindId);
+
+  return RANKS.some(rk=>{
+    if(strength(rk,revolution)<=threshold)return false;
+    const unknownNaturals=SUITS
+      .map(([s])=>`${s}${rk}`)
+      .filter(id=>!unavailable.has(id))
+      .length;
+    return unknownNaturals>=2;
+  });
+}
+
+function cpuIsUnsafeSinglePlusJokerPairInHand(i,hand,a,revolution){
+  if(!a||a.type!=='group'||a.n!==2||!a.cards.some(c=>c.joker))return false;
+  const natural=a.cards.find(c=>!c.joker);
+  if(!natural)return false;
+  const sameRankCount=hand.filter(c=>!c.joker&&c.rank===natural.rank).length;
+  return sameRankCount===1&&cpuOpponentMayHaveStrongerNaturalPairThan(i,natural.rank,revolution);
+}
+
 function certainRunOutMinSteps(i,cards,revolution,memo=new Map()){
   if(!cards.length)return 0;
 
   // 残り全部を1手で合法かつ反則上がりせず出せるなら最短は1手。
-  if(analysesInState(cards,revolution).some(a=>!isFoulFinishInState(a,revolution)))return 1;
+  if(analysesInState(cards,revolution).some(a=>
+    !isFoulFinishInState(a,revolution)&&
+    !cpuIsUnsafeSinglePlusJokerPairInHand(i,cards,a,revolution)
+  ))return 1;
 
   // 未出札者が2人以上いる序盤では再帰探索を止める。
   if(hasTwoOrMorePlayersWhoHaveNeverPlayed())return Infinity;
@@ -2467,6 +2510,7 @@ function certainRunOutMinSteps(i,cards,revolution,memo=new Map()){
   for(const cs of combinations(cards)){
     if(cs.length===cards.length)continue;
     for(const a of analysesInState(cs,revolution)){
+      if(cpuIsUnsafeSinglePlusJokerPairInHand(i,cards,a,revolution))continue;
       const clears=moveClearsPileWithoutOpponent(a,revolution);
       const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution);
       if(!clears&&!unanswerable)continue;
@@ -2560,7 +2604,7 @@ function secondWeakestThenUpThenWeakest(items,powerFn){
   );
   return [...ordered.slice(1),ordered[0]];
 }
-function orderCertainMovesForHand(hand,moves,revolution){
+function orderCertainMovesForHand(hand,moves,revolution,preservingOnly=false){
   if(!moves||!moves.length)return [];
   const part=optimalHandPartition(hand,revolution);
 
@@ -2695,6 +2739,9 @@ function orderCertainMovesForHand(hand,moves,revolution){
     ].map(x=>x.a);
   }
 
+  // 7組以上の第1段階探索などでは、現在の最適分割を維持する手だけに限定できる。
+  if(preservingOnly)return preserving;
+
   return [...preserving,...breakingOrdered];
 }
 // 後方互換用。探索箇所では可能な限り orderCertainMovesForHand を使う。
@@ -2716,7 +2763,123 @@ function cpuMoveCertainFinishStepsBounded(i,a,memo=new Map(),budget=null){
   return Number.isFinite(rest)?1+rest:Infinity;
 }
 
-function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLeft=null,budget=null){
+
+// 7組以上専用：探索開始時の最適分割を固定し、そのまとまりを一切崩さず終局まで探索する。
+// 各局面で optimalHandPartition() を再計算しないため、序盤の探索負荷を大幅に抑える。
+// 単品も1組として固定し、探索対象から落とさない。
+function cpuStage1FixedPartitionCertainRoute(i,rootLegal,budget=null){
+  const hand=G.players[i].hand;
+  const part=optimalHandPartition(hand,G.revolution);
+  if(part.groupCount<7)return null;
+
+  // v302までの確実上がり探索と同じ序盤ガードを維持する。
+  // まだ2人以上が一度もカードを出していない局面では、終局までの再帰探索を開始しない。
+  // この専用関数だけがガードを迂回すると、ゲーム開始直後から固定分割の全終局探索へ入り、
+  // CPUが通常の優先条件・スコア評価へ進むまで長時間ブロックされる。
+  if(hasTwoOrMorePlayersWhoHaveNeverPlayed())return null;
+
+  const fixedGroups=[
+    ...part.bundles.map(a=>a.cards.map(c=>c.id).sort()),
+    ...part.singles.map(c=>[c.id])
+  ];
+  const groupKey=ids=>[...ids].sort().join('|');
+  const groupKeys=fixedGroups.map(groupKey);
+  const indexByKey=new Map(groupKeys.map((k,idx)=>[k,idx]));
+
+  // 入口は現在の合法手のうち、固定した最適分割をそのまま出す手だけ。
+  // ここでは orderCertainMovesForHand() による再分割を避け、固定分割の順序を直接使う。
+  const rootByKey=new Map();
+  for(const a of rootLegal){
+    const k=groupKey(a.cards.map(c=>c.id));
+    if(indexByKey.has(k)&&!rootByKey.has(k))rootByKey.set(k,a);
+  }
+  const rootGroups=fixedGroups.map((ids,gi)=>{
+    const a=rootByKey.get(groupKey(ids));
+    return a?{gi,a,power:certainMoveSearchPower(a,G.revolution),key:groupKey(ids)}:null;
+  }).filter(Boolean).sort((x,y)=>x.power-y.power||x.key.localeCompare(y.key));
+  // 既存の確実探索と同じく、最弱を最後へ回す。
+  const roots=rootGroups.length<=1?rootGroups:[...rootGroups.slice(1),rootGroups[0]];
+  if(!roots.length)return null;
+
+  const cardById=new Map(hand.map(c=>[c.id,c]));
+
+  // 各固定グループについて「通常／革命」の2状態だけを先に解析する。
+  // 相手が返せるかの証明を探索木の各節点で何度も計算しない。
+  const variantCache=new Map();
+  const variantsFor=(gi,revolution,remainingHand)=>{
+    const baseKey=`${gi}:${revolution?'R':'N'}`;
+    let base=variantCache.get(baseKey);
+    if(!base){
+      const cards=fixedGroups[gi].map(id=>cardById.get(id)).filter(Boolean);
+      base=analysesInState(cards,revolution).filter(a=>a.cards.length===cards.length).map(a=>({
+        a,
+        clears:moveClearsPileWithoutOpponent(a,revolution),
+        unanswerable:cpuCanProveLeadMoveUnanswerable(i,a,revolution),
+        nextRev:a.revolution?!revolution:revolution,
+        foul:isFoulFinishInState(a,revolution)
+      }));
+      variantCache.set(baseKey,base);
+    }
+    // 危険な「単品1枚＋Joker」ペアだけは、残り手札に応じて毎節点判定する。
+    return base.filter(v=>!cpuIsUnsafeSinglePlusJokerPairInHand(i,remainingHand,v.a,revolution));
+  };
+
+  const memo=new Map();
+  const handForMask=mask=>{
+    const ids=[];
+    for(let gi=0;gi<fixedGroups.length;gi++){
+      if((mask>>gi)&1)ids.push(...fixedGroups[gi]);
+    }
+    return ids.map(id=>cardById.get(id)).filter(Boolean);
+  };
+
+  function canFinish(mask,revolution){
+    if(mask===0)return true;
+    if(!countCertainState(budget))return false;
+    const key=`FP:${mask}:${revolution?'R':'N'}`;
+    if(memo.has(key))return memo.get(key);
+    memo.set(key,false);
+
+    const remainingHand=handForMask(mask);
+    for(let gi=0;gi<fixedGroups.length;gi++){
+      if(((mask>>gi)&1)===0)continue;
+      const nextMask=mask&~(1<<gi);
+      for(const v of variantsFor(gi,revolution,remainingHand)){
+        if(nextMask===0){
+          if(!v.foul){memo.set(key,true);return true;}
+          continue;
+        }
+        if(!v.clears&&!v.unanswerable)continue;
+        if(canFinish(nextMask,v.nextRev)){
+          memo.set(key,true);
+          return true;
+        }
+        if(budget&&budget.cutoff)return false;
+      }
+    }
+    return false;
+  }
+
+  const fullMask=(1<<fixedGroups.length)-1;
+  for(const root of roots){
+    const {gi,a}=root;
+    const remainingMask=fullMask&~(1<<gi);
+    if(remainingMask===0){
+      if(!isFoulFinish(a))return a;
+      continue;
+    }
+    const keepsControl=
+      moveClearsPileWithoutOpponent(a,G.revolution)||
+      cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+    if(!keepsControl)continue;
+    const nextRev=a.revolution?!G.revolution:G.revolution;
+    if(canFinish(remainingMask,nextRev))return a;
+    if(budget&&budget.cutoff)break;
+  }
+  return null;
+}
+
+function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLeft=null,budget=null,preservingOnly=false){
   if(!cards.length)return 0;
   if(!countCertainState(budget))return Infinity;
 
@@ -2732,8 +2895,12 @@ function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLef
   // 全手札を一度に合法上がりできるなら即確定。
   const finishNow=orderCertainMovesForHand(
     cards,
-    analysesInState(cards,revolution).filter(a=>!isFoulFinishInState(a,revolution)),
-    revolution
+    analysesInState(cards,revolution).filter(a=>
+      !isFoulFinishInState(a,revolution)&&
+      !cpuIsUnsafeSinglePlusJokerPairInHand(i,cards,a,revolution)
+    ),
+    revolution,
+    preservingOnly
   );
   if(finishNow.length)return 1;
 
@@ -2743,12 +2910,20 @@ function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLef
   if(memo.has(key))return memo.get(key);
   memo.set(key,Infinity);
 
-  // ビットマスク順ではなく、現在出せる候補をすべて集めて強い順に探索する。
+  // 現在出せる候補を集めて探索する。
+  // 7組以上の「まとまり維持のみ」探索では、全カード組合せを列挙すると非常に重くなるため、
+  // 最適分割に含まれる各まとまりだけを直接候補化する。
   const candidates=[];
   const seen=new Set();
-  for(const cs of combinations(cards)){
-    if(cs.length===cards.length)continue;
+
+  const candidateCardSets=preservingOnly
+    ?optimalHandPartition(cards,revolution).bundles.map(b=>b.cards)
+    :combinations(cards);
+
+  for(const cs of candidateCardSets){
+    if(!preservingOnly&&cs.length===cards.length)continue;
     for(const a of analysesInState(cs,revolution)){
+      if(cpuIsUnsafeSinglePlusJokerPairInHand(i,cards,a,revolution))continue;
       const k=moveAnalysisKey(a);
       if(seen.has(k))continue;
       seen.add(k);
@@ -2758,14 +2933,14 @@ function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLef
     }
   }
 
-  for(const a of orderCertainMovesForHand(cards,candidates,revolution)){
+  for(const a of orderCertainMovesForHand(cards,candidates,revolution,preservingOnly)){
     if(budget&&budget.cutoff)break;
 
     const used=new Set(a.cards.map(c=>c.id));
     const remaining=cards.filter(c=>!used.has(c.id));
     const nextRevolution=a.revolution?!revolution:revolution;
     const nextDepth=depthLeft===Infinity?Infinity:Math.max(0,depthLeft-1);
-    const rest=certainRunOutMinStepsBounded(i,remaining,nextRevolution,memo,nextDepth,budget);
+    const rest=certainRunOutMinStepsBounded(i,remaining,nextRevolution,memo,nextDepth,budget,preservingOnly);
 
     // 一つでも確実ルートが見つかったら、手数比較をせず即終了。
     if(Number.isFinite(rest)){
@@ -2977,7 +3152,10 @@ function certainFullResponseWin(s,root,rootDepth,budget,memo){
   if(memo.has(key))return memo.get(key);
 
   const i=s.turn;
-  const moves=certainSimLegalMoves(s,i);
+  const allMoves=certainSimLegalMoves(s,i);
+  const moves=i===root
+    ?allMoves.filter(a=>!cpuIsUnsafeSinglePlusJokerPairInHand(root,s.players[root].hand,a,s.revolution))
+    :allMoves;
   const canPass=!!s.pile;
 
   if(i===root){
@@ -3070,7 +3248,10 @@ function certainFullResponseForcedLoss(s,root,budget,memo){
   if(memo.has(key))return memo.get(key);
 
   const i=s.turn;
-  const moves=certainSimLegalMoves(s,i);
+  const allMoves=certainSimLegalMoves(s,i);
+  const moves=i===root
+    ?allMoves.filter(a=>!cpuIsUnsafeSinglePlusJokerPairInHand(root,s.players[root].hand,a,s.revolution))
+    :allMoves;
   const canPass=!!s.pile;
   const actions=[...moves];
   if(canPass)actions.push(null);
@@ -3247,7 +3428,25 @@ async function runCpu(){
 
   const rawLegal=allLegal(p);
   const nonFoulLegal=rawLegal.filter(a=>!(p.hand.length===a.n&&isFoulFinish(a))&&!moveLeavesOnlyFoulCards(p,a));
-  let legal=[...nonFoulLegal];
+
+  // 【絶対】1枚しかない数字＋Jokerで作るペアについて、
+  // 相手がそれより強い自然ペアを持つ可能性がある場合は出さない。
+  // 場札があって他に出せる手がない場合は、この危険ペアを候補から外したまま後段のパス判定へ進む。
+  const unsafeJokerPairMoveKeys=new Set(
+    nonFoulLegal
+      .filter(a=>cpuIsUnsafeSinglePlusJokerPairInHand(i,p.hand,a,G.revolution))
+      .map(a=>a.cards.map(c=>c.id).sort().join('|'))
+  );
+
+  const safeNonFoulLegal=nonFoulLegal.filter(a=>
+    !unsafeJokerPairMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
+  );
+
+  // 空場ではパスできないため、危険ペア以外に合法手が一切ない場合だけ
+  // ゲームを停止させないため元の合法手を残す。場札がある場合は0件のままパスへ進める。
+  let legal=(safeNonFoulLegal.length||G.pile)
+    ?[...safeNonFoulLegal]
+    :[...nonFoulLegal];
 
   // 【最上位・絶対】残り手札が3組以下になった時は、確実勝利探索より先に
   // 「相手に勝ちを強制される入口」を最弱のまとまりから終局まで全探索する。
@@ -3281,46 +3480,52 @@ async function runCpu(){
   }
 
   // 【絶対】8以外の単品を持っておらず、
-  // 現在出せるどのペアも「確実敗北」の入口になる場合は、
-  // ペアを崩して1枚で出す。
-  // 既存の確実敗北探索で全ペアが敗北と証明された場合だけ発動する。
+  // 現在の最適分割に含まれる「どのまとまり」を出しても、
+  // 相手がパスしない限り確実に負ける場合は、まとまりを崩して1枚で出す。
+  // 既存の確実敗北探索で、現在出せるすべてのまとまりが敗北と証明された場合だけ発動する。
   {
     const partitionNow=optimalHandPartition(p.hand,G.revolution);
     const hasNonEightSingle=partitionNow.singles.some(c=>c.joker||c.rank!==8);
-    const pairMoves=nonFoulLegal.filter(a=>
-      a.type==='group'&&
-      a.n===2
+
+    // 最適分割に含まれる「まとまり」のうち、現在合法に出せるものだけを対象にする。
+    // ペア・トリオ・革命・階段など、種類を限定しない。
+    const partitionBundleKeys=new Set(
+      partitionNow.bundles.map(a=>a.cards.map(c=>c.id).sort().join('|'))
+    );
+    const bundleMoves=nonFoulLegal.filter(a=>
+      a.cards.length>=2 &&
+      partitionBundleKeys.has(a.cards.map(c=>c.id).sort().join('|'))
     );
 
-    const everyPairCertainlyLoses=
-      pairMoves.length>0&&
+    const everyBundleCertainlyLoses=
+      bundleMoves.length>0&&
       cpuCanUseFullResponseSearch(i)&&
-      pairMoves.every(a=>
+      bundleMoves.every(a=>
         certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
       );
 
-    if(!hasNonEightSingle&&everyPairCertainlyLoses){
-      const pairCardIds=new Set();
-      for(const pair of pairMoves){
-        for(const c of pair.cards){
-          if(!c.joker)pairCardIds.add(c.id);
+    if(!hasNonEightSingle&&everyBundleCertainlyLoses){
+      const bundleCardIds=new Set();
+      for(const bundle of bundleMoves){
+        for(const c of bundle.cards){
+          if(!c.joker)bundleCardIds.add(c.id);
         }
       }
 
-      const brokenPairSingles=rawLegal.filter(a=>
+      const brokenBundleSingles=rawLegal.filter(a=>
         a.type==='single'&&
         a.cards.length===1&&
         !a.cards[0].joker&&
-        pairCardIds.has(a.cards[0].id)&&
+        bundleCardIds.has(a.cards[0].id)&&
         !(p.hand.length===1&&isFoulFinish(a))
       );
 
-      if(brokenPairSingles.length){
-        brokenPairSingles.sort((x,y)=>
+      if(brokenBundleSingles.length){
+        brokenBundleSingles.sort((x,y)=>
           strength(x.rank,G.revolution)-strength(y.rank,G.revolution)||
           (x.cards[0].suit||'Z').localeCompare(y.cards[0].suit||'Z')
         );
-        legal=[brokenPairSingles[0]];
+        legal=[brokenBundleSingles[0]];
       }
     }
   }
@@ -3345,40 +3550,93 @@ async function runCpu(){
       );
 
       // 自分自身に確実上がりルートがあるなら最優先。
-      const orderedMine=orderCertainMovesForHand(
-        p.hand,
-        legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))),
-        G.revolution
+      // 7組以上ではメインの第1段階と同じく、固定した最適分割を維持する終局探索だけを行い、
+      // 見つからなくても第2段階（全応手探索）へは進まない。
+      const mineCandidateLegal=legal.filter(a=>
+        !certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
       );
+      const mineGroupCount=optimalHandPartition(p.hand,G.revolution).groupCount;
       let myCertainFirst=null;
-      for(const a of orderedMine){
-        const steps=cpuMoveCertainFinishStepsBounded(i,a,new Map(),createCertainSearchBudget());
-        if(Number.isFinite(steps)){myCertainFirst=a;break}
-      }
-      if(!myCertainFirst){
+
+      if(mineGroupCount>=7){
+        const orderedMine=orderCertainMovesForHand(
+          p.hand,
+          mineCandidateLegal,
+          G.revolution,
+          true
+        );
         for(const a of orderedMine){
-          if(cpuMoveCertainFinishWithResponses(i,a,createCertainSearchBudget(),null)){
-            myCertainFirst=a;break;
+          const used=new Set(a.cards.map(c=>c.id));
+          const rem=p.hand.filter(c=>!used.has(c.id));
+          const nextRev=a.revolution?!G.revolution:G.revolution;
+          const d=cpuCertainSearchDepthForState(rem,nextRev);
+          const steps=(()=>{
+            if(!rem.length)return isFoulFinish(a)?Infinity:1;
+            const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+            if(!keepsControl)return Infinity;
+            const rest=certainRunOutMinStepsBounded(i,rem,nextRev,new Map(),d,createCertainSearchBudget(),true);
+            return Number.isFinite(rest)?1+rest:Infinity;
+          })();
+          if(Number.isFinite(steps)){myCertainFirst=a;break}
+        }
+      }else{
+        const orderedMine=orderCertainMovesForHand(
+          p.hand,
+          mineCandidateLegal,
+          G.revolution
+        );
+        for(const a of orderedMine){
+          const steps=cpuMoveCertainFinishStepsBounded(i,a,new Map(),createCertainSearchBudget());
+          if(Number.isFinite(steps)){myCertainFirst=a;break}
+        }
+        if(!myCertainFirst){
+          for(const a of orderedMine){
+            if(cpuMoveCertainFinishWithResponses(i,a,createCertainSearchBudget(),null)){
+              myCertainFirst=a;break;
+            }
           }
         }
       }
+
       if(myCertainFirst){
         legal=[myCertainFirst];
         STRONG_COMMON_POOR_COOP=true;
       }else if(mateIndex>=0){
         // もう一方の平民/貧民が現在の手札から確実に上がれるかを見る。
+        // 相方も7組以上なら固定分割の第1段階だけとし、第2段階には進まない。
         const mate=G.players[mateIndex];
-        const mateLegal=allLegal(mate).filter(a=>
+        const mateRawLegal=allLegal(mate).filter(a=>
           !(mate.hand.length===a.n&&isFoulFinish(a))&&!moveLeavesOnlyFoulCards(mate,a)
         );
-        const mateOrdered=orderCertainMovesForHand(mate.hand,mateLegal,G.revolution);
-        let mateCertain=mateOrdered.some(a=>
-          Number.isFinite(cpuMoveCertainFinishStepsBounded(mateIndex,a,new Map(),createCertainSearchBudget()))
+        const mateLegal=mateRawLegal.filter(a=>
+          !cpuIsUnsafeSinglePlusJokerPairInHand(mateIndex,mate.hand,a,G.revolution)
         );
-        if(!mateCertain&&cpuCanUseFullResponseSearch(mateIndex)){
+        const mateGroupCount=optimalHandPartition(mate.hand,G.revolution).groupCount;
+        let mateCertain=false;
+
+        if(mateGroupCount>=7){
+          const mateOrdered=orderCertainMovesForHand(mate.hand,mateLegal,G.revolution,true);
+          mateCertain=mateOrdered.some(a=>{
+            const used=new Set(a.cards.map(c=>c.id));
+            const rem=mate.hand.filter(c=>!used.has(c.id));
+            if(!rem.length)return !isFoulFinish(a);
+            const nextRev=a.revolution?!G.revolution:G.revolution;
+            const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(mateIndex,a,G.revolution);
+            if(!keepsControl)return false;
+            const d=cpuCertainSearchDepthForState(rem,nextRev);
+            const rest=certainRunOutMinStepsBounded(mateIndex,rem,nextRev,new Map(),d,createCertainSearchBudget(),true);
+            return Number.isFinite(rest);
+          });
+        }else{
+          const mateOrdered=orderCertainMovesForHand(mate.hand,mateLegal,G.revolution);
           mateCertain=mateOrdered.some(a=>
-            cpuMoveCertainFinishWithResponses(mateIndex,a,createCertainSearchBudget(),null)
+            Number.isFinite(cpuMoveCertainFinishStepsBounded(mateIndex,a,new Map(),createCertainSearchBudget()))
           );
+          if(!mateCertain&&cpuCanUseFullResponseSearch(mateIndex)){
+            mateCertain=mateOrdered.some(a=>
+              cpuMoveCertainFinishWithResponses(mateIndex,a,createCertainSearchBudget(),null)
+            );
+          }
         }
 
         // 相方に確実上がりがあり、自分が現在パス可能ならパスして妨害しない。
@@ -3402,9 +3660,18 @@ async function runCpu(){
       legal.filter(a=>!certainLossMoveKeys.has(moveKey(a))),
       G.revolution
     );
+    const stage1PreservingOnly=optimalHandPartition(p.hand,G.revolution).groupCount>=7;
+    const orderedStage1=stage1PreservingOnly
+      ?orderCertainMovesForHand(
+          p.hand,
+          legal.filter(a=>!certainLossMoveKeys.has(moveKey(a))),
+          G.revolution,
+          true
+        )
+      :orderedTop;
     let firstTopCertain=null;
 
-    const searchStage1AtDepth=(a,depthOverride,budget)=>{
+    const searchStage1AtDepth=(a,depthOverride,budget,preservingOnly=false)=>{
       const used=new Set(a.cards.map(c=>c.id));
       const remaining=p.hand.filter(c=>!used.has(c.id));
       if(!remaining.length)return isFoulFinish(a)?Infinity:1;
@@ -3414,46 +3681,62 @@ async function runCpu(){
         cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
       if(!keepsControl)return Infinity;
       const memo=new Map();
-      const rest=certainRunOutMinStepsBounded(i,remaining,nextRev,memo,depthOverride,budget);
+      const rest=certainRunOutMinStepsBounded(i,remaining,nextRev,memo,depthOverride,budget,preservingOnly);
       return Number.isFinite(rest)?1+rest:Infinity;
     };
 
     // 第1段階：相手が一度も返せない確実経路。
-    // 20,000局面に達したら、その深度ですでに着手した入口は放棄し、
-    // 未着手入口だけを1段浅い深度で続ける。
+    // 7組以上では、探索開始時の最適分割を固定し、そのまとまりを一切崩さず終局まで探索する。
+    // この専用探索では、全入口で1つのbudgetを共有し、合計20,000局面に達した時点で探索全体を打ち切る。
+    // 7組未満では従来の可変深度探索を使う。
+    // 第2段階でも使うため、これらは分岐の外側で宣言する。
     let depthReduction=0;
-    let remainingEntries=[...orderedTop];
-    while(!firstTopCertain&&remainingEntries.length){
-      const budget=createCertainSearchBudget();
-      const attemptedThisDepth=new Set();
-      let cutoff=false;
+    let remainingEntries=[];
+    if(stage1PreservingOnly){
+      const stage1Budget=createCertainSearchBudget();
+      firstTopCertain=cpuStage1FixedPartitionCertainRoute(
+        i,
+        legal.filter(a=>!certainLossMoveKeys.has(moveKey(a))),
+        stage1Budget
+      );
+      // budget.cutoff の場合も別入口用のbudgetは作り直さない。
+      // 確実上がりが見つからなければ、このまま第2段階を飛ばして通常の優先条件スコア評価へ進む。
+    }else{
+      depthReduction=0;
+      remainingEntries=[...orderedStage1];
+      const stage1Budget=createCertainSearchBudget();
 
-      for(const a of remainingEntries){
-        const k=moveKey(a);
-        attemptedThisDepth.add(k);
-        const used=new Set(a.cards.map(c=>c.id));
-        const rem=p.hand.filter(c=>!used.has(c.id));
-        const nextRev=a.revolution?!G.revolution:G.revolution;
-        let d=cpuCertainSearchDepthForState(rem,nextRev);
-        if(d===Infinity){
-          if(depthReduction>0)d=Math.max(1,5-depthReduction);
-        }else{
-          d=Math.max(1,d-depthReduction);
+      while(!firstTopCertain&&remainingEntries.length&&!stage1Budget.cutoff){
+        const attemptedThisDepth=new Set();
+        let cutoff=false;
+
+        for(const a of remainingEntries){
+          const k=moveKey(a);
+          attemptedThisDepth.add(k);
+          const used=new Set(a.cards.map(c=>c.id));
+          const rem=p.hand.filter(c=>!used.has(c.id));
+          const nextRev=a.revolution?!G.revolution:G.revolution;
+          let d=cpuCertainSearchDepthForState(rem,nextRev);
+          if(d===Infinity){
+            if(depthReduction>0)d=Math.max(1,5-depthReduction);
+          }else{
+            d=Math.max(1,d-depthReduction);
+          }
+
+          const steps=searchStage1AtDepth(a,d,stage1Budget,false);
+          certainStepsByKey.set(k,steps);
+          if(Number.isFinite(steps)){firstTopCertain=a;break}
+          if(stage1Budget.cutoff){cutoff=true;break}
         }
-
-        const steps=searchStage1AtDepth(a,d,budget);
-        certainStepsByKey.set(k,steps);
-        if(Number.isFinite(steps)){firstTopCertain=a;break}
-        if(budget.cutoff){cutoff=true;break}
+        if(firstTopCertain||!cutoff||stage1Budget.cutoff)break;
+        remainingEntries=remainingEntries.filter(a=>!attemptedThisDepth.has(moveKey(a)));
+        depthReduction++;
+        if(depthReduction>5)break;
       }
-      if(firstTopCertain||!cutoff)break;
-      remainingEntries=remainingEntries.filter(a=>!attemptedThisDepth.has(moveKey(a)));
-      depthReduction++;
-      if(depthReduction>5)break;
     }
 
     // 第2段階：相手の合法な全応手を含め、入口順を最初から探索し直す。
-    if(!firstTopCertain&&cpuCanUseFullResponseSearch(i)){
+    if(!firstTopCertain&&!stage1PreservingOnly&&cpuCanUseFullResponseSearch(i)){
       depthReduction=0;
       remainingEntries=[...orderedTop];
       while(!firstTopCertain&&remainingEntries.length){
@@ -3997,67 +4280,12 @@ async function runCpu(){
 
   // 【優先】1枚しかない数字＋Jokerで作るペアについて、
   // 相手がそれより強い自然ペアを持っている可能性がある場合は、そのJokerペアを出さず、
-  // まとまりとしても保護しない。
-  function opponentMayHaveStrongerNaturalPairThan(rank){
-    const threshold=strength(rank,G.revolution);
-
-    if(CPU_MODE==='strong'){
-      return G.players.some((op,j)=>{
-        if(j===i||op.finished)return false;
-        const counts={};
-        for(const c of op.hand){
-          if(!c.joker)counts[c.rank]=(counts[c.rank]||0)+1;
-        }
-        return RANKS.some(rk=>
-          strength(rk,G.revolution)>threshold &&
-          (counts[rk]||0)>=2
-        );
-      });
-    }
-
-    // 通常モードでは、自分の現手札・既出札・判明済みブラインド以外を未知札として扱う。
-    // より強いランクの通常札が2枚以上まだ未知なら、相手がそのペアを持つ可能性ありとする。
-    const mem=cpuMemory(i);
-    const unavailable=new Set([...mem.current,...mem.played]);
-    if(mem.blindId)unavailable.add(mem.blindId);
-
-    return RANKS.some(rk=>{
-      if(strength(rk,G.revolution)<=threshold)return false;
-      const unknownNaturals=SUITS
-        .map(([s])=>`${s}${rk}`)
-        .filter(id=>!unavailable.has(id))
-        .length;
-      return unknownNaturals>=2;
-    });
-  }
-
-  function isUnsafeSinglePlusJokerPair(bundle){
-    if(!bundle||bundle.type!=='group'||bundle.n!==2)return false;
-    if(!bundle.cards.some(c=>c.joker))return false;
-    const natural=bundle.cards.find(c=>!c.joker);
-    if(!natural)return false;
-
-    // 「1枚しかない数字」にだけ適用する。
-    const sameRankCount=p.hand.filter(c=>!c.joker&&c.rank===natural.rank).length;
-    if(sameRankCount!==1)return false;
-
-    return opponentMayHaveStrongerNaturalPairThan(natural.rank);
-  }
-
-  const unsafeJokerPairBundles=optimalPartition.bundles.filter(isUnsafeSinglePlusJokerPair);
-  const unsafeJokerPairKeys=new Set(
-    unsafeJokerPairBundles.map(x=>x.cards.map(c=>c.id).sort().join('|'))
-  );
-
-  // 危険な「単品＋Joker」ペアはまとまりを解除する。
+  // 危険な「単品＋Joker」ペアは上段の絶対条件ですでに出札候補から除外済み。
+  // 新仕様では「まとまりを解除する」は行わず、最適分割自体はそのまま維持する。
   const protectedBundles=optimalPartition.bundles
-    .filter(x=>!unsafeJokerPairKeys.has(x.cards.map(c=>c.id).sort().join('|')))
     .map(a=>new Set(a.cards.map(c=>c.id)));
 
-  const partitionSingles=[
-    ...optimalPartition.singles,
-    ...unsafeJokerPairBundles.flatMap(x=>x.cards)
-  ];
+  const partitionSingles=[...optimalPartition.singles];
 
   function bundleBreakPenalty(a){
     if(mustUseS3AgainstJoker&&isSingleS3(a))return 0;
@@ -4179,7 +4407,6 @@ async function runCpu(){
   if(legal.length&&!certainFinishMoves.size){
     const partitionBundleKeys=new Set(
       optimalPartition.bundles
-        .filter(x=>!unsafeJokerPairKeys.has(x.cards.map(c=>c.id).sort().join('|')))
         .map(x=>x.cards.map(c=>c.id).sort().join('|'))
     );
     const partitionSingleIds=new Set(partitionSingles.map(c=>c.id));
@@ -4441,13 +4668,6 @@ async function runCpu(){
 
       if(isFreedWeakSingle)s-=2600;
       else if(isBreakHighSingle)s+=1200;
-    }
-
-    // 【優先】1枚しかない数字＋Jokerで作るペアで、
-    // 相手がそれより強い自然ペアを持っている可能性がある場合は、そのペアを強く避ける。
-    if(!certain&&a.type==='group'&&a.n===2&&a.cards.some(c=>c.joker)){
-      const moveKey=a.cards.map(c=>c.id).sort().join('|');
-      if(unsafeJokerPairKeys.has(moveKey))s+=6000;
     }
 
     // 0) ペア・トリオ・階段のまとまりを崩す手を避ける。
@@ -4764,8 +4984,8 @@ async function runCpu(){
     }
 
     // 【優先】Jokerとスペード3を両方持ち、スペード3が最適分割上どのまとまりにも含まれず、
-    // 手札が7枚以下になったらスペード3単騎を優先する。革命中は適用しない。
-    if(!certain&&!G.revolution&&p.hand.length<=7&&hasJoker&&hasS3){
+    // 手札が5組以下になったらスペード3単騎を優先する。革命中は適用しない。
+    if(!certain&&!G.revolution&&optimalPartition.groupCount<=5&&hasJoker&&hasS3){
       const s3IsIsolated=optimalPartition.singles.some(c=>c.id==='S3');
       if(s3IsIsolated){
         if(isSingleS3(a))s-=5200;
