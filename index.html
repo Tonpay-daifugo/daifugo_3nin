@@ -1209,12 +1209,20 @@ body.exchangePhase .top{
   .player .count{grid-column:2;grid-row:2}
   .player .small{grid-column:3;grid-row:2}
 
-  /* スマホ横画面：場札Jokerの文字をカード幅内に収める。 */
+  /* スマホ横画面：Joker文字をカード幅内でできるだけ大きく表示する。 */
   .pile-play .card.joker > span:first-child{
     width:calc(100% - 4px);
     max-width:calc(100% - 4px);
-    font-size:11px;
-    letter-spacing:-.2px;
+    font-size:14px;
+    letter-spacing:-.4px;
+    white-space:nowrap;
+  }
+  .hand .card.joker > span:first-child{
+    width:calc(100% - 4px);
+    max-width:calc(100% - 4px);
+    font-size:13px;
+    letter-spacing:-.4px;
+    white-space:nowrap;
   }
 }
 
@@ -1392,10 +1400,30 @@ function positionEffectOverlayForViewport(){
   }
 }
 
-function playSound(type){
+async function ensureAudioContextRunning(){
   try{
     audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
-    if(audioCtx.state==='suspended')audioCtx.resume();
+    if(audioCtx.state==='suspended')await audioCtx.resume();
+  }catch(e){}
+  return audioCtx;
+}
+
+function requestAudioResume(){
+  ensureAudioContextRunning();
+}
+
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)requestAudioResume();
+});
+window.addEventListener('pageshow',requestAudioResume);
+for(const ev of ['pointerdown','touchstart','click','keydown']){
+  document.addEventListener(ev,requestAudioResume,{passive:true});
+}
+
+async function playSound(type){
+  try{
+    await ensureAudioContextRunning();
+    if(!audioCtx||audioCtx.state!=='running')return;
     const now=audioCtx.currentTime;
     const patterns={
       play:[[330,0,.07,'sine'],[440,.065,.08,'sine']],
