@@ -1208,6 +1208,14 @@ body.exchangePhase .top{
   .player .role{grid-column:1;grid-row:2}
   .player .count{grid-column:2;grid-row:2}
   .player .small{grid-column:3;grid-row:2}
+
+  /* スマホ横画面：場札Jokerの文字をカード幅内に収める。 */
+  .pile-play .card.joker > span:first-child{
+    width:calc(100% - 4px);
+    max-width:calc(100% - 4px);
+    font-size:11px;
+    letter-spacing:-.2px;
+  }
 }
 
 @media (max-width:480px){
@@ -1719,7 +1727,11 @@ function renderPile(){
     if(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches&&entry.type==='straight'){
       const centerEl=document.querySelector('.center');
       const centerWidth=centerEl?centerEl.clientWidth:window.innerWidth;
-      const cardWidth=78; // smartphone pile card width
+      // 横画面では場札カードが58pxになるため、実際のCSS幅に合わせて中央補正する。
+      // ここを78px固定にすると長い階段ほど幅を過大評価し、左へ寄ってしまう。
+      const landscapePhone=window.matchMedia('(max-width: 768px) and (orientation: landscape)').matches;
+      const narrowPhone=window.matchMedia('(max-width: 480px)').matches;
+      const cardWidth=landscapePhone?58:(narrowPhone?75:78);
       const gap=7;
       const naturalWidth=entry.cards.length*cardWidth+Math.max(0,entry.cards.length-1)*gap;
       const usableWidth=Math.max(120,centerWidth-20);
@@ -1832,10 +1844,42 @@ async function finishCpuPass(i){
   render();setTimeout(runCpu,400);
 }
 
+function cpuPassWouldGiveOpponentImmediateFinish(i){
+  if(!G.pile)return false;
+
+  // 現在局面から「このCPUがパスした直後」の局面だけを仮想的に作る。
+  const afterPass=certainSimApplyPass(cloneCertainSimFromGame(),i);
+  const next=afterPass.turn;
+  if(next===i)return false;
+  const opponent=afterPass.players[next];
+  if(!opponent||opponent.finished||!opponent.hand.length)return false;
+
+  // 例外：自分と次の相手が平民・貧民の組み合わせで、富豪がまだ上がっていない場合はパスを許可する。
+  const selfRole=G.players[i].role;
+  const oppRole=G.players[next].role;
+  const commonPoorPair=
+    (selfRole==='平民'&&oppRole==='貧民')||
+    (selfRole==='貧民'&&oppRole==='平民');
+  const richStillPlaying=G.players.some(p=>p.role==='富豪'&&!p.finished);
+  if(commonPoorPair&&richStillPlaying)return false;
+
+  // 次の相手が、その1手で残り手札をすべて合法・非反則で出し切れるならパス禁止。
+  for(const a of analysesInState(opponent.hand,afterPass.revolution)){
+    if(a.cards.length!==opponent.hand.length)continue;
+    if(!certainSimCompatible(afterPass,a))continue;
+    if(isFoulFinishInState(a,afterPass.revolution))continue;
+    return true;
+  }
+  return false;
+}
+
 async function cpuTryPass(i){
   // CPUの全パス経路をここに集約する。
   // 空場ではログ・効果音・passedフラグを一切発生させない。
   if(!G.pile)return false;
+  // 【絶対】自分がパスすると、次の相手がその1手で上がれる場合はパスしない。
+  // ただし平民↔貧民の組み合わせで富豪が未上がりなら、この禁止は適用しない。
+  if(cpuPassWouldGiveOpponentImmediateFinish(i))return false;
   const p=G.players[i];
   p.passed=true;
   if(!G.trickPassers)G.trickPassers=new Set();
@@ -2184,6 +2228,19 @@ function cpuMemory(i){
     perfectHands:strong?G.players.map(x=>new Set(x.hand.map(c=>c.id))):null
   };
 }
+
+// 確実探索専用：平民CPUの交換前初期手札にJokerが無かった場合、
+// ブラインドにはJokerが入らず、貧民が初期所持していても交換で富豪へ渡すため、
+// Jokerの現在の所有者は富豪だと確定できる（未出の間）。
+function cpuCertainKnownJokerOwnerFromCommonInitial(i){
+  if(CPU_MODE==='strong')return null;
+  const p=G.players[i];
+  if(!p||p.role!=='平民')return null;
+  if((p.initialHandIds||[]).includes('JK'))return null;
+  const rich=G.players.findIndex(x=>x.role==='富豪');
+  return rich>=0?rich:null;
+}
+
 function cpuKnownOpponentHand(i,targetIndex){
   // 通常モード用：相手の残り手札が全て特定済みのときだけ返す。
   // 自分の current ではなく、既知の出札履歴・ブラインド・残枚数から一意に確定した場合に限定する。
@@ -2336,6 +2393,8 @@ function cpuMoveCertainlyUnanswerableByPlayer(i,a,target,revolutionBefore){
   if(CPU_MODE==='strong')return !cpuStrongModePlayerHasReply(target,a,revolutionBefore);
   // 指定した相手1人が、その手に合法に返せないことをCPUの既知情報だけで保守的に証明する。
   if(target<0||G.players[target].finished)return true;
+  // 現在の場で既にパス済みの相手は、場が流れるまで応手できない。
+  if(G.pile&&G.players[target].passed)return true;
   if(G.players[target].hand.length<a.n)return true;
 
   const mem=cpuMemory(i);
@@ -2346,10 +2405,19 @@ function cpuMoveCertainlyUnanswerableByPlayer(i,a,target,revolutionBefore){
   // unseen のどこかに返しが存在する限り「確定パス」とはしない。
   const unseen=makeDeck().filter(c=>!unavailable.has(c.id));
   const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
-  const rawUnseenJoker=unseen.some(c=>c.joker);
+
+  // 平民CPUの初期手札にJokerが無かったなら、未出のJokerは富豪にあると確定する。
+  // よって対象が富豪でない場合、その対象者の応手にJokerは使えない。
+  const knownJokerOwner=cpuCertainKnownJokerOwnerFromCommonInitial(i);
+  const targetCanOwnJoker=knownJokerOwner==null||target===knownJokerOwner;
+  const rawUnseenJoker=unseen.some(c=>c.joker)&&targetCanOwnJoker;
+
   // 確実手順探索専用の前提：この手を出した後も3人全員が10枚以上なら、
   // 相手はJokerを単品の応手としては出さない。
   // group/straightへのJoker使用可能性は従来どおり残す。
+  const allThreeTenOrMore=G.players.every((p,j)=>
+    (j===i?Math.max(0,p.hand.length-a.n):p.hand.length)>=10
+  );
   const unseenJoker=rawUnseenJoker;
   const unseenSingleJoker=rawUnseenJoker&&!allThreeTenOrMore;
   const natural=unseen.filter(c=>!c.joker);
@@ -2402,7 +2470,7 @@ function moveClearsPileWithoutOpponent(a,revolution){
   const strongestStraight=isStrongestStraightMove(a,revolution);
   return eightCut||strongestStraight;
 }
-function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=null){
+function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=null,respectCurrentPasses=false){
   const ownAfter=ownCountAfterMove==null
     ?Math.max(0,G.players[i].hand.length-a.n)
     :ownCountAfterMove;
@@ -2427,14 +2495,25 @@ function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=
   if(!opponents.some(x=>x.p.hand.length>=a.n))return true;
 
   const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
-  const unseenJoker=unseen.some(c=>c.joker);
+
+  // 平民CPUの交換前初期手札にJokerが無かった場合、Jokerは富豪が所持すると確定する。
+  // 現在のトリックを評価していて、その富豪が既にパス済みなら、場が流れるまでは
+  // 他の相手からJokerが出る可能性はない。場が流れた後の再帰局面にはこのpassed情報を持ち越さない。
+  const knownJokerOwner=cpuCertainKnownJokerOwnerFromCommonInitial(i);
+  const jokerOwnerUnavailableThisTrick=
+    respectCurrentPasses&&
+    knownJokerOwner!=null&&
+    !!G.pile&&
+    (G.players[knownJokerOwner].finished||G.players[knownJokerOwner].passed);
+  const unseenJoker=unseen.some(c=>c.joker)&&!jokerOwnerUnavailableThisTrick;
+  const unseenSingleJoker=unseenJoker&&!allThreeTenOrMore;
   const natural=unseen.filter(c=>!c.joker);
 
   if(a.type==='single'){
     if(a.cards.length===1&&a.cards[0].joker){
       return !unseen.some(c=>c.id==='S3');
     }
-    if(unseenJoker)return false;
+    if(unseenSingleJoker)return false;
     return !natural.some(c=>strength(c.rank,responseRev)>strength(a.rank,responseRev));
   }
 
@@ -2793,7 +2872,7 @@ function cpuMoveCertainFinishStepsBounded(i,a,memo=new Map(),budget=null){
   if(!remaining.length)return isFoulFinish(a)?Infinity:1;
 
   const nextRev=a.revolution?!G.revolution:G.revolution;
-  const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+  const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution,null,true);
   if(!keepsControl)return Infinity;
 
   const depthLeft=cpuCertainSearchDepthForState(remaining,nextRev,true);
@@ -2908,7 +2987,7 @@ function cpuStage1FixedPartitionCertainRoute(i,rootLegal,budget=null){
     }
     const keepsControl=
       moveClearsPileWithoutOpponent(a,G.revolution)||
-      cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+      cpuCanProveLeadMoveUnanswerable(i,a,G.revolution,null,true);
     if(!keepsControl)continue;
     const nextRev=a.revolution?!G.revolution:G.revolution;
     if(canFinish(remainingMask,nextRev))return a;
@@ -3386,7 +3465,7 @@ function cpuMoveCertainFinishSteps(i,a,memo=new Map()){
   const remaining=p.hand.filter(c=>!used.has(c.id));
   if(!remaining.length)return isFoulFinish(a)?Infinity:1;
   const nextRev=a.revolution?!G.revolution:G.revolution;
-  const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+  const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution,null,true);
   if(!keepsControl)return Infinity;
   const rest=certainRunOutMinSteps(i,remaining,nextRev,memo);
   return Number.isFinite(rest)?1+rest:Infinity;
@@ -3620,7 +3699,7 @@ async function runCpu(){
           const d=cpuCertainSearchDepthForState(rem,nextRev);
           const steps=(()=>{
             if(!rem.length)return isFoulFinish(a)?Infinity:1;
-            const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+            const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution,null,true);
             if(!keepsControl)return Infinity;
             const rest=certainRunOutMinStepsBounded(i,rem,nextRev,new Map(),d,createCertainSearchBudget(),true);
             return Number.isFinite(rest)?1+rest:Infinity;
@@ -3726,7 +3805,7 @@ async function runCpu(){
       const nextRev=a.revolution?!G.revolution:G.revolution;
       const keepsControl=
         moveClearsPileWithoutOpponent(a,G.revolution)||
-        cpuCanProveLeadMoveUnanswerable(i,a,G.revolution);
+        cpuCanProveLeadMoveUnanswerable(i,a,G.revolution,null,true);
       if(!keepsControl)return Infinity;
       const memo=new Map();
       const rest=certainRunOutMinStepsBounded(i,remaining,nextRev,memo,depthOverride,budget,preservingOnly);
@@ -3876,10 +3955,11 @@ async function runCpu(){
   const commonPoorAtThreeOrLess=
     p.role==='富豪'&&G.players.some((x,j)=>
       j!==i&&!x.finished&&(x.role==='平民'||x.role==='貧民')&&x.hand.length<=3);
+  const mustNotPassToPreventImmediateFinish=cpuPassWouldGiveOpponentImmediateFinish(i);
 
   // 後段の優先条件・パス判断でも参照するため、ブロックスコープの外で定義する。
   const canPassAsActionEarly=
-    !!G.pile&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess;
+    !!G.pile&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess&&!mustNotPassToPreventImmediateFinish;
 
   // 【絶対】自分が確実に負ける入口は選択しない。
   // 全合法入口が確実敗北で、かつパス可能ならパスする。
@@ -4059,11 +4139,12 @@ async function runCpu(){
   // 【絶対】場が流れて空場になったときはパスしない。
   // 「自分が以前出した札がまだ場にあり、他者が出札して手番が戻った」局面は空場ではないため、パスしてよい。
   // 絶対禁止（反則上がり／残りが反則札だけになる手）を復活させず、安全な合法手だけから必ず1手選ぶ。
-  if((headsUpOpponentAtThreeOrLess||mustNotPassForRichAtThreeOrLess||commonPoorAtThreeOrLess)&&nonFoulLegal.length){
+  if((headsUpOpponentAtThreeOrLess||mustNotPassForRichAtThreeOrLess||commonPoorAtThreeOrLess||mustNotPassToPreventImmediateFinish)&&nonFoulLegal.length){
     // 【最上位・絶対】
     // ・1対1で相手残り3枚以下
     // ・富豪残り3枚以下で、平民/貧民のもう一人がまだこの場でカードを出していない
     // ・平民または貧民の残り3枚以下に対する富豪
+    // ・パスすると次の相手がその1手で上がる局面（平民↔貧民かつ富豪未上がりを除く）
     // のいずれかでは、安全な合法手が1つでもある限りパスしない。
     if(!legal.length)legal=[...nonFoulLegal];
   }else if(!legal.length&&isLead){
