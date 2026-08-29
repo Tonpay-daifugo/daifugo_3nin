@@ -1905,10 +1905,13 @@ async function cpuTryPass(i){
   // CPUの全パス経路をここに集約する。
   // 空場ではログ・効果音・passedフラグを一切発生させない。
   if(!G.pile)return false;
-  // 【絶対】自分がパスすると、次の相手がその1手で上がれる場合はパスしない。
-  // ただし平民↔貧民の組み合わせで富豪が未上がりなら、この禁止は適用しない。
-  if(cpuPassWouldGiveOpponentImmediateFinish(i))return false;
   const p=G.players[i];
+  const hasAnyLegalReply=allLegal(p).length>0;
+  // 【絶対】自分がパスすると、次の相手がその1手で上がれる場合はパスしない。
+  // ただしこれは「出せる手があるのにパスする」場合だけ適用する。
+  // 合法な応手が1つもない場合はパスが強制なので、この禁止条件では止めない。
+  // 平民↔貧民の組み合わせで富豪が未上がりの場合も、従来どおり禁止を適用しない。
+  if(hasAnyLegalReply&&cpuPassWouldGiveOpponentImmediateFinish(i))return false;
   p.passed=true;
   if(!G.trickPassers)G.trickPassers=new Set();
   G.trickPassers.add(i);
@@ -3379,23 +3382,21 @@ function orderCertainLossMovesForHand(hand,moves,revolution){
     .map(x=>x.a);
 }
 
-// root が「相手に勝ちを強制される」かを完全情報で判定する。
-// root の手番では、1つでも敗北を回避できる合法行動があれば「確実敗北」ではない。
-// 相手の手番では、1つでも root の敗北を強制できる合法行動があれば「確実敗北」。
+// root が「3位を相手に強制される」かを完全情報で判定する。
+// 2位は敗北扱いしない。root の手番では、1つでも3位を回避できる合法行動があれば
+// 「3位確定」ではない。相手の手番では、1つでも root の3位を強制できる応手があれば3位確定。
 function certainFullResponseForcedLoss(s,root,budget,memo){
   if(!countCertainState(budget))return false;
 
-  // 自分が先に合法上がりできた枝は敗北ではない。
+  // 自分が合法上がりできた枝は1位または2位なので、3位ではない。
+  // 反則上がりは3位回避とはみなさない。
   if(s.players[root].finished)return !!s.players[root].foul;
 
-  // 探索開始時には未上がりだった相手が先に上がった時点で、root はその相手に敗北。
-  if(s.players.some((p,j)=>
-    j!==root &&
-    p.finished &&
-    !(s.finishedAtStart&&s.finishedAtStart[j])
-  ))return true;
+  // root がまだ上がっておらず、他の2人がともに上がった時点で3位が確定する。
+  // 探索開始時点ですでに1人上がっていた場合も、残る相手が先に上がればここで3位確定。
+  if(s.players.every((p,j)=>j===root||p.finished))return true;
 
-  const key='L:'+certainSimKey(s,root,Infinity);
+  const key='L3:'+certainSimKey(s,root,Infinity);
   if(memo.has(key))return memo.get(key);
 
   const i=s.turn;
@@ -3407,16 +3408,16 @@ function certainFullResponseForcedLoss(s,root,budget,memo){
   const actions=[...moves];
   if(canPass)actions.push(null);
 
-  // 行動不能は「確実敗北」とは証明しない。
+  // 行動不能だけでは3位確定とは証明しない。
   if(!actions.length){
     memo.set(key,false);
     return false;
   }
 
   if(i===root){
-    // 自分は敗北を回避する最善手を選ぶ。
-    // 1つでも安全な枝があれば、この局面は確実敗北ではない。
-    memo.set(key,true); // 再帰循環時は保守的に「敗北候補」とする
+    // 自分は3位を回避する最善手を選ぶ。
+    // 1つでも3位を回避できる枝があれば、この局面は3位確定ではない。
+    memo.set(key,true); // 再帰循環時は保守的に3位候補とする
     for(const a of actions){
       if(budget&&budget.cutoff){memo.set(key,false);return false}
       const ns=a?certainSimApplyMove(s,i,a):certainSimApplyPass(s,i);
@@ -3429,8 +3430,8 @@ function certainFullResponseForcedLoss(s,root,budget,memo){
     return true;
   }
 
-  // 相手は root を負かす最善応手を選ぶ。
-  // 1つでも敗北を強制できる枝があれば、そのルートは確実敗北。
+  // 相手は root を3位にする最善応手を選ぶ。
+  // 1つでも3位を強制できる枝があれば、そのルートは3位確定。
   memo.set(key,false);
   for(const a of actions){
     if(budget&&budget.cutoff){memo.set(key,false);return false}
@@ -3445,8 +3446,7 @@ function certainFullResponseForcedLoss(s,root,budget,memo){
 }
 
 function cpuMoveCertainForcedLossWithResponses(i,a,budget=null){
-  // 相手手札を透視せずに「確実敗北」と断定できるよう、
-  // 完全情報探索が許可されている局面だけで使用する。
+  // 完全情報が使える局面で、この入口から3位を相手に強制されるかを判定する。
   if(!cpuCanUseFullResponseSearch(i))return false;
 
   const s=cloneCertainSimFromGame();
@@ -3454,11 +3454,81 @@ function cpuMoveCertainForcedLossWithResponses(i,a,budget=null){
 
   const first=certainSimApplyMove(s,i,a);
 
-  // この入口で自分が合法上がりするなら敗北ではない。
+  // この入口で合法上がりすれば1位または2位なので3位ではない。
   if(first.players[i].finished)return !!first.players[i].foul;
 
-  // 残り2組は終局まで探索する。
   return certainFullResponseForcedLoss(first,i,budget||createCertainSearchBudget(),new Map());
+}
+
+function cpuPassCertainForcedLossWithResponses(i,budget=null){
+  // パスそのものも「3位確定か」を比較対象にする。
+  if(!cpuCanUseFullResponseSearch(i)||!G.pile)return false;
+
+  const s=cloneCertainSimFromGame();
+  if(s.turn!==i)return false;
+
+  const first=certainSimApplyPass(s,i);
+  return certainFullResponseForcedLoss(first,i,budget||createCertainSearchBudget(),new Map());
+}
+
+
+// 残り2組専用：このまとまりを残した場合、相手が親で出し得るどの手にも
+// まとまりを丸ごと使って応手できないことを完全情報で判定する。
+// 通常モードでは完全情報探索が許可されている局面だけ使用し、未知手札を透視しない。
+function cpuBundleCannotReplyToAnyOpponentLead(i,bundle){
+  if(!bundle||!bundle.cards||!bundle.cards.length)return false;
+  if(!cpuCanUseFullResponseSearch(i))return false;
+
+  const opponents=G.players
+    .map((p,j)=>({p,j}))
+    .filter(x=>x.j!==i&&!x.p.finished);
+
+  // 相手が誰も残っていないなら「死んだまとまり」とは扱わない。
+  if(!opponents.length)return false;
+
+  let opponentHasAnyLead=false;
+
+  for(const {p:op} of opponents){
+    const seenLead=new Set();
+
+    for(const cs of combinations(op.hand)){
+      for(const lead of analysesInState(cs,G.revolution)){
+        const lk=moveAnalysisKey(lead);
+        if(seenLead.has(lk))continue;
+        seenLead.add(lk);
+
+        // 相手自身の反則上がりになる最終手は、実際の有効な「出し得る手」から除く。
+        if(op.hand.length===lead.n&&isFoulFinishInState(lead,G.revolution))continue;
+
+        opponentHasAnyLead=true;
+
+        // 8切りなら、その場は即座に流れるためこちらは応手できない。
+        const leadCuts=
+          lead.cards.some(c=>!c.joker&&c.rank===8);
+        if(leadCuts)continue;
+
+        const responseRev=lead.revolution?!G.revolution:G.revolution;
+
+        // 同じカード集合が応手時にもどのような分析になるかを再計算する。
+        // 革命手を相手が出した場合にも、革命後の強さで正しく比較する。
+        for(const reply of analysesInState(bundle.cards,responseRev)){
+          if(reply.type!==lead.type||reply.n!==lead.n)continue;
+
+          // Joker単騎に返せるのはスペード3単騎だけ。
+          if(lead.type==='single'&&lead.rank===16){
+            if(reply.cards.length===1&&reply.cards[0].id==='S3')return false;
+            continue;
+          }
+
+          if(strength(reply.rank,responseRev)>strength(lead.rank,responseRev)){
+            return false;
+          }
+        }
+      }
+    }
+  }
+
+  return opponentHasAnyLead;
 }
 
 function cpuMoveCertainFinishWithResponses(i,a,budget=null,depthOverride=null){
@@ -3578,6 +3648,14 @@ async function runCpu(){
   }
 
   const rawLegal=allLegal(p);
+
+  // 場札に対する合法な応手が0枚なら、パスは戦略的選択ではなく強制。
+  // 残り1組の相手が次に上がれる場合でも、「パス禁止」で停止させず即パスする。
+  // また、この場合は最適分割や確実探索を行う必要がないので先に処理する。
+  if(G.pile&&rawLegal.length===0){
+    if(await cpuTryPass(i))return;
+  }
+
   const nonFoulLegal=rawLegal.filter(a=>!(p.hand.length===a.n&&isFoulFinish(a))&&!moveLeavesOnlyFoulCards(p,a));
 
   // 【絶対】1枚しかない数字＋Jokerで作るペアについて、
@@ -3603,11 +3681,72 @@ async function runCpu(){
   // runCpu() 内では1回だけ計算し、後続の全判定で共有する。
   const currentOptimalPartition=optimalHandPartition(p.hand,G.revolution);
 
+  // 【最上位・絶対】残り手札が2組で、
+  // 「相手が親で何を出しても、このまとまりを丸ごと使って応手できないまとまり」と
+  // その他のまとまりに分かれる場合は、死んだまとまりを先に処理して残さない。
+  // ただし、その他のまとまりを現在出すことで確実に上がれる場合はそちらを優先する。
+  // また、現在のトリックで富豪が既にパスしている場合は適用しない。
+  {
+    const part=currentOptimalPartition;
+    const groups=[
+      ...part.bundles,
+      ...part.singles.map(c=>({
+        type:'single',
+        n:1,
+        rank:c.joker?16:c.rank,
+        cards:[c],
+        suits:c.joker?[]:[c.suit],
+        revolution:false
+      }))
+    ];
+
+    const richIndexForDeadBundle=G.players.findIndex(x=>x.role==='富豪');
+    const richHasPassedNow=
+      !!G.pile&&
+      richIndexForDeadBundle>=0&&
+      !G.players[richIndexForDeadBundle].finished&&
+      G.players[richIndexForDeadBundle].passed;
+
+    if(
+      groups.length===2&&
+      !richHasPassedNow&&
+      cpuCanUseFullResponseSearch(i)
+    ){
+      const groupKey=a=>a.cards.map(c=>c.id).sort().join('|');
+      const dead=groups.filter(g=>cpuBundleCannotReplyToAnyOpponentLead(i,g));
+      const live=groups.filter(g=>!dead.includes(g));
+
+      // 「死んだまとまり＋その他のまとまり」という構成の時だけ発動。
+      if(dead.length===1&&live.length===1){
+        const deadKey=groupKey(dead[0]);
+        const liveKey=groupKey(live[0]);
+
+        const deadMoves=legal.filter(a=>groupKey(a)===deadKey);
+        const liveMoves=legal.filter(a=>groupKey(a)===liveKey);
+
+        // その他のまとまりを出せば確実に上がれる場合は、この絶対条件を適用しない。
+        const liveCanWinNow=liveMoves.some(a=>{
+          const stage1=cpuMoveCertainFinishSteps(i,a,new Map());
+          if(Number.isFinite(stage1))return true;
+          return cpuMoveCertainFinishWithResponses(
+            i,a,createCertainSearchBudget(),Infinity
+          );
+        });
+
+        if(deadMoves.length&&!liveCanWinNow){
+          legal=deadMoves;
+        }
+      }
+    }
+  }
+
   // 【最上位・絶対】残り手札が3組以下になった時は、確実勝利探索より先に
-  // 「相手に勝ちを強制される入口」を最弱のまとまりから終局まで全探索する。
-  // 見つかった入口はこの手番中記憶し、後続の確実勝利探索・通常判断から除外する。
+  // 「3位を相手に強制される入口」を終局まで完全情報探索する。
+  // 2位は敗北扱いしない。3位確定の入口は、3位を回避できる入口が1つでもある限り候補から除外する。
+  // パス可能な局面ではパス自体も同じ基準で比較し、パスだけが3位を回避できる場合に限ってパスを優先する。
   const certainLossMoveKeys=new Set();
   let allCurrentMovesCertainLoss=false;
+  let passCertainLoss=false;
   {
     const currentGroups=currentOptimalPartition.groupCount;
 
@@ -3619,15 +3758,18 @@ async function runCpu(){
         if(cpuMoveCertainForcedLossWithResponses(i,a,budget)){
           certainLossMoveKeys.add(a.cards.map(c=>c.id).sort().join('|'));
         }
-        // 局面上限に達した入口は「確実敗北」と断定しない。
+        // 局面上限に達した入口は「3位確定」と断定しない。
       }
 
       allCurrentMovesCertainLoss=
         legal.length>0&&
         legal.every(a=>certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
 
-      // 1つでも安全な入口があれば、確実敗北入口を完全に候補から外す。
-      // 全入口が敗北の場合は、後段でパス可能か判定するため一旦保持する。
+      if(G.pile){
+        passCertainLoss=cpuPassCertainForcedLossWithResponses(i,createCertainSearchBudget());
+      }
+
+      // 3位を回避できる「出す」入口が1つでもあれば、3位確定入口を完全に除外する。
       if(certainLossMoveKeys.size&&!allCurrentMovesCertainLoss){
         legal=legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
       }
@@ -3637,7 +3779,7 @@ async function runCpu(){
   // 【絶対】8以外の単品を持っておらず、
   // 現在の最適分割に含まれる「どのまとまり」を出しても、
   // 相手がパスしない限り確実に負ける場合は、まとまりを崩して1枚で出す。
-  // 既存の確実敗北探索で、現在出せるすべてのまとまりが敗北と証明された場合だけ発動する。
+  // 既存の3位回避探索で、現在出せるすべてのまとまりが3位確定と証明された場合だけ発動する。
   {
     const partitionNow=currentOptimalPartition;
     const hasNonEightSingle=partitionNow.singles.some(c=>c.joker||c.rank!==8);
@@ -3989,13 +4131,14 @@ async function runCpu(){
   const canPassAsActionEarly=
     !!G.pile&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess&&!mustNotPassToPreventImmediateFinish;
 
-  // 【絶対】自分が確実に負ける入口は選択しない。
-  // 全合法入口が確実敗北で、かつパス可能ならパスする。
-  if(allCurrentMovesCertainLoss&&canPassAsActionEarly){
+  // 【最上位・絶対】3位回避を最優先する。
+  // 出せる全入口が3位確定でも、パスも3位確定なら無条件にはパスしない。
+  // パスだけが3位を回避できる場合に限りパスする。
+  if(allCurrentMovesCertainLoss&&canPassAsActionEarly&&!passCertainLoss){
     if(await cpuTryPass(i))return;
   }
 
-  // パスできない場合でも、もし安全入口が存在するなら敗北入口は候補へ戻さない。
+  // 3位を回避できる出し手が存在する場合、3位確定入口は候補へ戻さない。
   if(certainLossMoveKeys.size&&!allCurrentMovesCertainLoss){
     legal=legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
   }
@@ -4160,7 +4303,18 @@ async function runCpu(){
       if(forced.length)legal=forced;
     }else if(G.pile&&G.pile.type==='single'&&strength(G.pile.rank,false)<strength(8,false)&&p.hand.some(c=>!c.joker&&c.rank===8)){
       const forced=nonFoulLegal.filter(isSingleEight);
-      if(forced.length)legal=forced;
+
+      // 8単騎を出した結果、最適分割上の単品が2つ以上増える場合は
+      // この強制条件を適用しない。単品の増加が0～1個なら8を出す。
+      const singlesBefore=currentOptimalPartition.bundles.filter(b=>b.type==='single').length;
+      const forcedWithoutTwoNewSingles=forced.filter(a=>{
+        const remaining=p.hand.filter(c=>!a.cards.some(x=>x.id===c.id));
+        const after=optimalHandPartition(remaining,G.revolution);
+        const singlesAfter=(after?.bundles||[]).filter(b=>b.type==='single').length;
+        return singlesAfter-singlesBefore<2;
+      });
+
+      if(forcedWithoutTwoNewSingles.length)legal=forcedWithoutTwoNewSingles;
     }
   }
 
