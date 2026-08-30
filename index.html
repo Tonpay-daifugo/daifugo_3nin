@@ -1363,6 +1363,10 @@ let CPU_MODE_LOCKED=false;
 // エフェクト待ちや探索中に複数の setTimeout から同じCPU手番へ侵入しないようにする。
 let CPU_RUN_ACTIVE=false;
 
+// 富豪6枚以下の確定勝ち阻止探索で、そのCPUのパスが
+// 富豪の確定勝ちを与えると判定された手番だけパスを禁止する。
+let CPU_RICH_CERTAIN_WIN_PASS_BLOCK=-1;
+
 let audioCtx=null;
 let SOUND_VOLUME=Math.max(0,Math.min(1,Number(localStorage.getItem('daifugoSoundVolume')||'0.8')));
 
@@ -1919,6 +1923,13 @@ async function cpuTryPass(i){
   // 合法な応手が1つもない場合はパスが強制なので、この禁止条件では止めない。
   // 平民↔貧民の組み合わせで富豪が未上がりの場合も、従来どおり禁止を適用しない。
   if(hasAnyLegalReply&&cpuPassWouldGiveOpponentImmediateFinish(i))return false;
+
+  // 【絶対】富豪6枚以下の確定勝ち阻止探索で、
+  // 「このパスをすると富豪の確定勝ちを許す」と判定され、
+  // かつ他に出せる手がある場合はパスしない。
+  // 合法手が0件なら通常どおり強制パスを許可する。
+  if(hasAnyLegalReply&&CPU_RICH_CERTAIN_WIN_PASS_BLOCK===i)return false;
+
   p.passed=true;
   if(!G.trickPassers)G.trickPassers=new Set();
   G.trickPassers.add(i);
@@ -2312,6 +2323,130 @@ function cpuCanUseFullResponseSearch(i){
   if(richIndex<0||!G.players[richIndex].finished)return false;
   const blindKnown=((G.cpuBlindKnowledge||[])[i]||null);
   return !!blindKnown;
+}
+
+
+// 富豪がこれまで一度でも出した「数字」を記録する。
+// 通常モードの富豪確定勝ち阻止探索では、2だけを例外とし、
+// それ以外は一度出した数字を現在の富豪がもう持っていない前提にする。
+function cpuRichPreviouslyPlayedNonTwoRanks(richIndex){
+  const ranks=new Set();
+  for(const r of (G.playedByRecords||[])){
+    if(r.player!==richIndex)continue;
+    for(const id of (r.cardIds||[])){
+      const c=cardById(id);
+      if(!c||c.joker||c.rank===15)continue; // 2 は例外
+      ranks.add(c.rank);
+    }
+  }
+  return ranks;
+}
+
+function cpuLimitedCombinationCount(n,k,limit){
+  if(k<0||k>n)return 0;
+  k=Math.min(k,n-k);
+  let v=1;
+  for(let j=1;j<=k;j++){
+    v=v*(n-k+j)/j;
+    if(v>limit)return limit+1;
+  }
+  return Math.round(v);
+}
+
+function* cpuChooseCardHands(cards,k,start=0,prefix=[]){
+  if(k===0){
+    yield [...prefix];
+    return;
+  }
+  for(let j=start;j<=cards.length-k;j++){
+    prefix.push(cards[j]);
+    yield* cpuChooseCardHands(cards,k-1,j+1,prefix);
+    prefix.pop();
+  }
+}
+
+// 通常モード用：富豪の実手札は直接採用せず、CPUから見えていないカードの中から
+// 「富豪が持ち得る手札」を作る。さらに、富豪が一度出した2以外の数字は全候補から除外する。
+// 候補手札が多すぎる場合は「確実」と断定せず探索を打ち切る。
+function cpuNormalPossibleRichHands(i,s,richIndex,hypotheticalPlayedIds=[]){
+  const mem=cpuMemory(i);
+  const richCount=s.players[richIndex].hand.length;
+  const unavailable=new Set([
+    ...mem.played,
+    ...hypotheticalPlayedIds,
+    ...s.players[i].hand.map(c=>c.id)
+  ]);
+  if(mem.blindId)unavailable.add(mem.blindId);
+
+  const forbiddenRanks=cpuRichPreviouslyPlayedNonTwoRanks(richIndex);
+  const pool=makeDeck().filter(c=>
+    !unavailable.has(c.id)&&
+    (c.joker||!forbiddenRanks.has(c.rank))
+  );
+
+  if(pool.length<richCount)return null;
+
+  // 富豪の候補手札を全列挙できる範囲だけ「確実」と判定する。
+  // 上限超過時は未証明としてこの条件を発動しない。
+  const MAX_HAND_CANDIDATES=512;
+  const total=cpuLimitedCombinationCount(pool.length,richCount,MAX_HAND_CANDIDATES);
+  if(total>MAX_HAND_CANDIDATES)return null;
+
+  return {pool,richCount};
+}
+
+// postState から富豪が、他プレイヤーが最善に抵抗しても先に合法上がりできるかを判定する。
+// 最強モードは実手札で完全情報探索。
+// 通常モードは上記の候補手札をすべて調べ、すべてで確定勝ちが証明できた時だけ true。
+function cpuRichCertainlyWinsFromState(i,postState,richIndex,hypotheticalPlayedIds=[]){
+  if(!postState||richIndex<0||postState.players[richIndex].finished)return false;
+
+  if(CPU_MODE==='strong'){
+    const budget={count:0,limit:12000,cutoff:false};
+    return certainFullResponseWin(postState,richIndex,Infinity,budget,new Map());
+  }
+
+  if(CPU_MODE!=='normal')return false;
+
+  const possible=cpuNormalPossibleRichHands(
+    i,postState,richIndex,hypotheticalPlayedIds
+  );
+  if(!possible)return false;
+
+  let checked=0;
+  for(const hand of cpuChooseCardHands(possible.pool,possible.richCount)){
+    const s=certainSimClone(postState);
+    s.players[richIndex].hand=hand.map(c=>({...c}));
+
+    // 通常モードでは候補手札1通りごとの探索量も抑える。
+    // 上限到達は「富豪確定勝ち」と断定しない。
+    const budget={count:0,limit:5000,cutoff:false};
+    if(!certainFullResponseWin(s,richIndex,Infinity,budget,new Map())){
+      return false;
+    }
+    if(budget.cutoff)return false;
+    checked++;
+  }
+  return checked>0;
+}
+
+function cpuActionGivesRichCertainWin(i,a,richIndex){
+  const base=cloneCertainSimFromGame();
+  if(base.turn!==i)return false;
+
+  let after;
+  let hypotheticalPlayedIds=[];
+  if(a){
+    after=certainSimApplyMove(base,i,a);
+    hypotheticalPlayedIds=a.cards.map(c=>c.id);
+  }else{
+    if(!base.pile)return false;
+    after=certainSimApplyPass(base,i);
+  }
+
+  return cpuRichCertainlyWinsFromState(
+    i,after,richIndex,hypotheticalPlayedIds
+  );
 }
 
 function cpuFullInfoHeadsUpDepth(i,groups){
@@ -3399,6 +3534,26 @@ function certainFullResponseForcedLoss(s,root,budget,memo){
   // 反則上がりは3位回避とはみなさない。
   if(s.players[root].finished)return !!s.players[root].foul;
 
+  // 【都落ちによる2位確定】
+  // 探索開始時点で富豪がまだ上がっておらず、その富豪以外のプレイヤーが
+  // 1位として先に上がった時点で富豪は都落ちとなり3位が確定する。
+  // その1位が root ではない場合、root は残る平民/貧民として2位確定なので、
+  // root の残り手札や富豪の残り手札に関係なく「3位ではない」と即判定する。
+  const richIndex=s.players.findIndex(p=>p.role==='富豪');
+  if(
+    richIndex>=0&&
+    !s.finishedAtStart?.[richIndex]&&
+    !s.players[richIndex].finished
+  ){
+    const newlyFinishedNonRich=s.players.findIndex((p,j)=>
+      j!==richIndex&&
+      j!==root&&
+      p.finished&&
+      !(s.finishedAtStart&&s.finishedAtStart[j])
+    );
+    if(newlyFinishedNonRich>=0)return false;
+  }
+
   // root がまだ上がっておらず、他の2人がともに上がった時点で3位が確定する。
   // 探索開始時点ですでに1人上がっていた場合も、残る相手が先に上がればここで3位確定。
   if(s.players.every((p,j)=>j===root||p.finished))return true;
@@ -3631,6 +3786,7 @@ async function runCpu(){
   // 1本目が探索・エフェクト待ち・playMove() 中なら、後から来た呼び出しは何もしない。
   if(CPU_RUN_ACTIVE)return;
   CPU_RUN_ACTIVE=true;
+  CPU_RICH_CERTAIN_WIN_PASS_BLOCK=-1;
 
   try{
 
@@ -3747,7 +3903,7 @@ async function runCpu(){
     }
   }
 
-  // 【最上位・絶対】残り手札が3組以下になった時は、確実勝利探索より先に
+  // 【最上位・絶対】残り手札が4組以下になった時は、確実勝利探索より先に
   // 「3位を相手に強制される入口」を終局まで完全情報探索する。
   // 2位は敗北扱いしない。3位確定の入口は、3位を回避できる入口が1つでもある限り候補から除外する。
   // パス可能な局面ではパス自体も同じ基準で比較し、パスだけが3位を回避できる場合に限ってパスを優先する。
@@ -3757,7 +3913,7 @@ async function runCpu(){
   {
     const currentGroups=currentOptimalPartition.groupCount;
 
-    if(currentGroups<=3&&legal.length&&cpuCanUseFullResponseSearch(i)){
+    if(currentGroups<=4&&legal.length&&cpuCanUseFullResponseSearch(i)){
       const lossOrdered=orderCertainLossMovesForHand(p.hand,legal,G.revolution);
 
       for(const a of lossOrdered){
@@ -3780,6 +3936,66 @@ async function runCpu(){
       if(certainLossMoveKeys.size&&!allCurrentMovesCertainLoss){
         legal=legal.filter(a=>!certainLossMoveKeys.has(a.cards.map(c=>c.id).sort().join('|')));
       }
+    }
+  }
+
+  // 【3位回避の次に優先・絶対】富豪の残り手札が6枚以下で、
+  // 自分が平民または貧民なら、各合法手とパスについて
+  // 「その後、富豪が相手の最善抵抗を受けても確実に先に上がれるか」を探索する。
+  // 富豪の確定勝ちを与えない行動が1つでもある場合、確定勝ちを与える行動は選ばない。
+  // 通常モードでは、富豪が過去に一度出した2以外の数字は
+  // 富豪が現在1枚も持っていないという前提で候補手札を構成する。
+  {
+    const richIndex=G.players.findIndex(x=>x.role==='富豪');
+    const rich=richIndex>=0?G.players[richIndex]:null;
+    const meIsCommonPoor=p.role==='平民'||p.role==='貧民';
+
+    if(
+      rich&&
+      !rich.finished&&
+      rich.hand.length<=6&&
+      meIsCommonPoor&&
+      legal.length
+    ){
+      const richCertainMoveKeys=new Set();
+
+      for(const a of legal){
+        if(cpuActionGivesRichCertainWin(i,a,richIndex)){
+          richCertainMoveKeys.add(
+            a.cards.map(c=>c.id).sort().join('|')
+          );
+        }
+      }
+
+      const passGivesRichCertainWin=
+        !!G.pile&&cpuActionGivesRichCertainWin(i,null,richIndex);
+
+      const safeMoves=legal.filter(a=>
+        !richCertainMoveKeys.has(
+          a.cards.map(c=>c.id).sort().join('|')
+        )
+      );
+
+      // 出す手の中に富豪の確定勝ちを崩せるものがあるなら、
+      // 富豪確定勝ちを与える出札を除外する。
+      if(safeMoves.length){
+        legal=safeMoves;
+
+        // パスだけが富豪の確定勝ちを与える場合は、この手番中の戦略的パスを禁止。
+        if(passGivesRichCertainWin){
+          CPU_RICH_CERTAIN_WIN_PASS_BLOCK=i;
+        }
+      }else if(
+        G.pile&&
+        !passGivesRichCertainWin&&
+        !passCertainLoss
+      ){
+        // 出す候補がすべて富豪の確定勝ちを与える一方、
+        // パスならそれを崩せ、かつパス自体が3位確定ではない場合はパスを優先する。
+        if(await cpuTryPass(i))return;
+      }
+      // 出す手もパスもすべて富豪確定勝ちになる場合は、
+      // この条件では候補を削らず既存ロジックに戻す。
     }
   }
 
@@ -5645,6 +5861,7 @@ async function runCpu(){
   await playMove(i,legal[0]);
   return;
   }finally{
+    CPU_RICH_CERTAIN_WIN_PASS_BLOCK=-1;
     CPU_RUN_ACTIVE=false;
   }
 }
@@ -5652,6 +5869,7 @@ function setupGame(next=false){
   const old=G;
   CPU_MODE_LOCKED=false;
   CPU_RUN_ACTIVE=false;
+  CPU_RICH_CERTAIN_WIN_PASS_BLOCK=-1;
   const startsNewSet=!next||old.gameInSet===4;
   const setNo=!next?1:(startsNewSet?old.setNo+1:old.setNo);
   const gameInSet=!next?1:(startsNewSet?1:old.gameInSet+1);
