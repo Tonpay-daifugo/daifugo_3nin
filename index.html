@@ -1746,7 +1746,14 @@ function renderPile(){
     wrap.className=`pile-play${latest?' latest':''}`;
     // 直近2手を横に寄せ、前の手は約80%に縮小してカード端が少し重なるように表示する。
     const hasPrevious=shown.length===2;
-    const x=hasPrevious?(latest?30:-38):0;
+    // スマホ縦画面では直近2手が接触しないよう、横方向だけ少し離す。
+    // PC・タブレット横画面・スマホ横画面の配置は従来のまま。
+    const portraitPhone=
+      window.matchMedia&&
+      window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
+    const x=hasPrevious
+      ?(portraitPhone?(latest?34:-42):(latest?30:-38))
+      :0;
     const y=hasPrevious?(latest?6:-4):0;
     let scale=latest?1:.8;
 
