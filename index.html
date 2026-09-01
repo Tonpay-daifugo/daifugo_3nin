@@ -1823,14 +1823,13 @@ function clearPile(starter,reason){
       }
     :null;
 
-  const commonPoorJustRevolted=!!G.commonPoorRevolutionLock;
   G.pile=null;
   G.pileHistory=[];
   G.lock=null;
   G.eightCutPending=false;
-  G.commonPoorRevolutionLock=false;
-  
-  if(commonPoorJustRevolted)G.commonPoorNoLeadRevolutionOnce=true;
+  // 平民/貧民間の革命返し禁止は「場が流れるまで」なので、ここで解除する。
+  G.commonPoorRevolutionLock=0;
+  G.commonPoorNoLeadRevolutionOnce=false;
 
   G.players.forEach(p=>p.passed=false);
   G.trickPassers=new Set();
@@ -2031,11 +2030,14 @@ async function playMove(i,a){
   const strongestStraight=isStrongestStraightMove(a,G.revolution);
   const effects=[];
   if(a.revolution){
-    // 富豪が未上がりの状態で平民・貧民が革命した場合、場が流れるまで
-    // 平民・貧民による革命返しを禁止するためのロックを立てる。
+    // 富豪が未上がりの状態で平民・貧民が革命した場合、
+    // 「どちらが革命を起こしたか」を player index + 1 で記録する。
+    // 0はロックなし。相方だけを革命返し禁止にするための情報。
     const richIndexBefore=G.players.findIndex(x=>x.role==='富豪');
     const richStillPlayingBefore=richIndexBefore>=0&&!G.players[richIndexBefore].finished;
-    if(richStillPlayingBefore&&(p.role==='平民'||p.role==='貧民'))G.commonPoorRevolutionLock=true;
+    if(richStillPlayingBefore&&(p.role==='平民'||p.role==='貧民')){
+      G.commonPoorRevolutionLock=i+1;
+    }
 
     G.revolution=!G.revolution;
     const counter=!G.revolution;
@@ -3434,7 +3436,10 @@ function certainSimCompatible(s,a){
     const actor=s.players[s.turn];
     const richIndex=s.players.findIndex(x=>x.role==='富豪'&&!x.finished);
     const commonPoor=actor&&(actor.role==='平民'||actor.role==='貧民')&&richIndex>=0;
-    if(commonPoor&&(s.commonPoorRevolutionLock||(!s.pile&&s.commonPoorNoLeadRevolutionOnce)))return false;
+    if(commonPoor&&s.commonPoorRevolutionLock){
+      const revolutionStarter=s.commonPoorRevolutionLock-1;
+      if(revolutionStarter!==s.turn)return false;
+    }
   }
   if(p.type!==a.type||p.n!==a.n)return false;
   if(p.type==='single'&&p.rank===16)return a.cards.length===1&&a.cards[0].id==='S3';
@@ -3496,10 +3501,9 @@ function certainSimClone(s){
   };
 }
 function certainSimClearPile(s,starter){
-  const commonPoorJustRevolted=!!s.commonPoorRevolutionLock;
   s.pile=null;s.lead=null;s.lock=null;
-  s.commonPoorRevolutionLock=false;
-  s.commonPoorNoLeadRevolutionOnce=commonPoorJustRevolted;
+  s.commonPoorRevolutionLock=0;
+  s.commonPoorNoLeadRevolutionOnce=false;
   s.players.forEach(p=>p.passed=false);
   s.turn=s.players[starter].finished?certainSimNextActive(s,starter):starter;
 }
@@ -3518,7 +3522,7 @@ function certainSimApplyPass(s,i){
 function certainSimApplyMove(s,i,a){
   const ns=certainSimClone(s);
   const p=ns.players[i];
-  if(ns.commonPoorNoLeadRevolutionOnce)ns.commonPoorNoLeadRevolutionOnce=false;
+  ns.commonPoorNoLeadRevolutionOnce=false;
   const prev=ns.pile;
   const prevSig=prev?certainSimSuitSignature(prev):null;
   const used=new Set(a.cards.map(c=>c.id));
@@ -3537,7 +3541,9 @@ function certainSimApplyMove(s,i,a){
 
   if(a.revolution){
     const richIndexBefore=ns.players.findIndex(x=>x.role==='富豪'&&!x.finished);
-    if(richIndexBefore>=0&&(p.role==='平民'||p.role==='貧民'))ns.commonPoorRevolutionLock=true;
+    if(richIndexBefore>=0&&(p.role==='平民'||p.role==='貧民')){
+      ns.commonPoorRevolutionLock=i+1;
+    }
     ns.revolution=!ns.revolution;
   }
 
@@ -3563,7 +3569,7 @@ function certainSimKey(s,root,rootDepth){
   return [
     root,rootDepth===Infinity?'I':rootDepth,s.turn,s.lead??'N',
     s.revolution?'R':'N',s.lock||'-',
-    s.commonPoorRevolutionLock?'C':'-',s.commonPoorNoLeadRevolutionOnce?'N':'-',
+    s.commonPoorRevolutionLock?`C${s.commonPoorRevolutionLock}`:'-',s.commonPoorNoLeadRevolutionOnce?'N':'-',
     (s.finishedAtStart||[]).map(x=>x?'1':'0').join(''),
     s.pile?`${s.pile.type}:${s.pile.n}:${s.pile.rank}:${certainCardSetKey(s.pile.cards)}`:'EMPTY',
     ...s.players.map(p=>`${p.finished?'F':'A'}${p.passed?'P':'-'}:${p.hand.map(c=>c.id).sort().join(',')}`)
@@ -3676,24 +3682,33 @@ function certainFullResponseForcedLoss(s,root,budget,memo){
   // 反則上がりは3位回避とはみなさない。
   if(s.players[root].finished)return !!s.players[root].foul;
 
-  // 【都落ちによる2位確定】
-  // 探索開始時点で富豪がまだ上がっておらず、その富豪以外のプレイヤーが
-  // 1位として先に上がった時点で富豪は都落ちとなり3位が確定する。
-  // その1位が root ではない場合、root は残る平民/貧民として2位確定なので、
-  // root の残り手札や富豪の残り手札に関係なく「3位ではない」と即判定する。
+  // 【都落ちの終端判定】
+  // 探索開始時点で富豪がまだ上がっていない場合、富豪以外が先に上がった時点で
+  // 富豪の3位が確定する。
+  // ・root自身が富豪なら、その瞬間にrootの3位確定。
+  // ・rootが平民/貧民なら、もう一方の非富豪が先に上がればrootは2位確定なので3位ではない。
   const richIndex=s.players.findIndex(p=>p.role==='富豪');
   if(
     richIndex>=0&&
     !s.finishedAtStart?.[richIndex]&&
     !s.players[richIndex].finished
   ){
-    const newlyFinishedNonRich=s.players.findIndex((p,j)=>
-      j!==richIndex&&
-      j!==root&&
-      p.finished&&
-      !(s.finishedAtStart&&s.finishedAtStart[j])
-    );
-    if(newlyFinishedNonRich>=0)return false;
+    if(root===richIndex){
+      const newlyFinishedOpponent=s.players.findIndex((p,j)=>
+        j!==root&&
+        p.finished&&
+        !(s.finishedAtStart&&s.finishedAtStart[j])
+      );
+      if(newlyFinishedOpponent>=0)return true;
+    }else{
+      const newlyFinishedNonRich=s.players.findIndex((p,j)=>
+        j!==richIndex&&
+        j!==root&&
+        p.finished&&
+        !(s.finishedAtStart&&s.finishedAtStart[j])
+      );
+      if(newlyFinishedNonRich>=0)return false;
+    }
   }
 
   // root がまだ上がっておらず、他の2人がともに上がった時点で3位が確定する。
@@ -4143,7 +4158,10 @@ async function runCpu(){
     legal=legal.filter(a=>!isAbsoluteForbidden(a));
   };
 
-  // 【確実上がりの次・絶対】残り手札が4組以下になった時は、
+  // 【確実上がりの次・絶対】3位回避探索を行う。
+  // 発動条件：
+  // ・残り手札が4組以下
+  // ・または、自分が富豪で、未上がりの相手の誰かが6枚以下
   // 「3位を相手に強制される入口」を終局まで完全情報探索する。
   // 2位は敗北扱いしない。3位確定の入口は、3位を回避できる入口が1つでもある限り候補から除外する。
   // パス可能な局面ではパス自体も同じ基準で比較し、パスだけが3位を回避できる場合に限ってパスを優先する。
@@ -4152,8 +4170,12 @@ async function runCpu(){
   let passCertainLoss=false;
   {
     const currentGroups=currentOptimalPartition.groupCount;
+    const richOpponentSixOrLess=
+      p.role==='富豪'&&
+      G.players.some((x,j)=>j!==i&&!x.finished&&x.hand.length<=6);
 
-    if(currentGroups<=4&&legal.length&&cpuCanUseFullResponseSearch(i)){
+    if((currentGroups<=4||richOpponentSixOrLess)&&
+       legal.length&&cpuCanUseFullResponseSearch(i)){
       const lossOrdered=orderCertainLossMovesForHand(p.hand,legal,G.revolution);
 
       for(const a of lossOrdered){
@@ -4531,7 +4553,7 @@ async function runCpu(){
 
   // 【絶対】自分がパスすると次の相手がその1手で上がる局面でも、
   // 自分とその相手が平民・貧民の組み合わせで富豪が未上がりならパスする。
-  // ただし、4組以下の完全情報探索でそのパスが3位確定と証明されている場合、
+  // ただし、上記の3位回避完全情報探索でそのパスが3位確定と証明されている場合、
   // または別の明示的なパス禁止絶対条件に抵触する場合は強制しない。
   if(G.pile&&!passCertainLoss&&!cpuStrategicPassForbiddenByAbsolute(i)){
     const afterPass=certainSimApplyPass(cloneCertainSimFromGame(),i);
@@ -4611,10 +4633,15 @@ async function runCpu(){
     if(filtered.length)legal=filtered;
   }
 
-  // 【絶対】平民/貧民が革命した直後：場が流れるまで革命返しをしない。
-  // 場流れ直後の1手も革命禁止。ただし、革命返し不能を確定でき、残り札で確実に上がれる革命は例外。
-  if(commonOrPoor&&legal.length&&(G.commonPoorRevolutionLock||(isLead&&G.commonPoorNoLeadRevolutionOnce))){
-    legal=legal.filter(a=>!a.revolution||cpuRevolutionExceptionCertain(i,a));
+  // 【絶対】富豪が上がっていない時、平民と貧民は「相方」が起こした革命に対して、
+  // 場が流れるまでは革命返しをしない。
+  // 革命を起こした本人の再革命は許可する。
+  // ただし、残り手札で自分が確実に上がれる革命手は例外として許可する。
+  if(commonOrPoor&&legal.length&&G.commonPoorRevolutionLock){
+    const revolutionStarter=G.commonPoorRevolutionLock-1;
+    if(revolutionStarter!==i){
+      legal=legal.filter(a=>!a.revolution||cpuRevolutionExceptionCertain(i,a));
+    }
   }
 
   // 【絶対】残り手札が2枚でJokerを含み、相手がスペード3を持っている可能性がある場合はパスする。
@@ -6164,7 +6191,7 @@ function setupGame(next=false){
     ?[false,false,false]
     :[...((old&&old.cpuBlindInferenceActive)||[false,false,false])];
 
-  G={players,blind,pile:null,pileHistory:[],lead:null,turn:0,revolution:false,lock:null,selected:new Set(),finishers:[],lastOrder:null,lastPoints:[0,0,0],scores:next?[...old.scores]:[0,0,0],gameHistory:next?[...(old.gameHistory||[])]:[],gameNo:next?old.gameNo+1:1,setNo,gameInSet,over:false,resultPending:false,resultModalShown:false,phase:'setup',pendingExchange:null,jokerPlayed:false,spade3Played:false,playedCardIds:[],playedByRecords:[],lastPlayedMove:null,lastClearPassContext:null,cpuBlindKnowledge,cpuBlindRankHistory,cpuBlindCandidateIds,cpuBlindInferenceActive,receivedFlashCardId:null,receivedFlashUntil:0,richFoulCoup:false,commonPoorRevolutionLock:false,commonPoorNoLeadRevolutionOnce:false,turnCount:0,trickPassers:new Set(),eightCutPending:false};
+  G={players,blind,pile:null,pileHistory:[],lead:null,turn:0,revolution:false,lock:null,selected:new Set(),finishers:[],lastOrder:null,lastPoints:[0,0,0],scores:next?[...old.scores]:[0,0,0],gameHistory:next?[...(old.gameHistory||[])]:[],gameNo:next?old.gameNo+1:1,setNo,gameInSet,over:false,resultPending:false,resultModalShown:false,phase:'setup',pendingExchange:null,jokerPlayed:false,spade3Played:false,playedCardIds:[],playedByRecords:[],lastPlayedMove:null,lastClearPassContext:null,cpuBlindKnowledge,cpuBlindRankHistory,cpuBlindCandidateIds,cpuBlindInferenceActive,receivedFlashCardId:null,receivedFlashUntil:0,richFoulCoup:false,commonPoorRevolutionLock:0,commonPoorNoLeadRevolutionOnce:false,turnCount:0,trickPassers:new Set(),eightCutPending:false};
   $('#log').innerHTML='';
   addLog(`第${G.setNo}セット・第${G.gameInSet}ゲームの準備を開始しました`);
   render();
