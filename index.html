@@ -3984,7 +3984,18 @@ async function runCpu(){
     if(await cpuTryPass(i))return;
   }
 
-  const nonFoulLegal=rawLegal.filter(a=>!(p.hand.length===a.n&&isFoulFinish(a))&&!moveLeavesOnlyFoulCards(p,a));
+  // 反則上がりそのもの、および「出した後に反則札しか残らない手」を最上位で除外する。
+  // 後者は後段の候補復活・フォールバックでも絶対に戻さない。
+  const leavesOnlyFoulMoveKeys=new Set(
+    rawLegal
+      .filter(a=>moveLeavesOnlyFoulCards(p,a))
+      .map(a=>a.cards.map(c=>c.id).sort().join('|'))
+  );
+
+  const nonFoulLegal=rawLegal.filter(a=>
+    !(p.hand.length===a.n&&isFoulFinish(a)) &&
+    !leavesOnlyFoulMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
+  );
 
   // 【絶対】1枚しかない数字＋Jokerで作るペアについて、
   // 相手がそれより強い自然ペアを持つ可能性がある場合は出さない。
@@ -4165,6 +4176,16 @@ async function runCpu(){
   const applyAbsoluteForbidden=()=>{
     legal=legal.filter(a=>!isAbsoluteForbidden(a));
   };
+
+  // 【反則上がり回避・絶対】終盤で、ある手を出すと反則札だけが残る一方、
+  // 別の合法手なら非反則札を最後に残せる場合は、後者だけを候補にする。
+  // 例：10+JK なら 10→JK は反則になるため除外し、JK→10 を残す。
+  if(legal.length){
+    const nonDeadEnd=legal.filter(a=>
+      !leavesOnlyFoulMoveKeys.has(a.cards.map(c=>c.id).sort().join('|'))
+    );
+    if(nonDeadEnd.length)legal=nonDeadEnd;
+  }
 
   // 【確実上がりの次・絶対】3位回避探索を行う。
   // 発動条件：
@@ -6137,16 +6158,24 @@ async function runCpu(){
   }
 
   if(!legal.length){
-    // 場札がある場合のみ最終的にパス可能。
-    // ここでは絶対禁止後の候補が0件なので、禁止札を「返せる手」と数えない。
-    if(await cpuTryPass(i,legal))return;
+    // 場札がある場合は、絶対禁止後に出せる札が0件ならパスする。
+    if(G.pile){
+      if(await cpuTryPass(i,legal))return;
+    }else{
+      // 親ではパスできないため、反則上がり回避を破らない nonFoulLegal のみから救済する。
+      // rawLegal は使わず、「反則札だけを残す手」を復活させない。
+      if(nonFoulLegal.length){
+        legal=[...nonFoulLegal];
+      }
+    }
 
-    // currentLegal=[] を渡した場あり局面では cpuTryPass が必ずパスするため、
-    // 通常ここには到達しない。念のため停止ではなく再評価を残す。
-    G.turn=i;
-    render();
-    setTimeout(runCpu,0);
-    return;
+    // それでも0件なら理論上の異常状態。停止ループを避けるため手番を再評価する。
+    if(!legal.length){
+      G.turn=i;
+      render();
+      setTimeout(runCpu,0);
+      return;
+    }
   }
   await playMove(i,legal[0]);
   return;
