@@ -1957,12 +1957,20 @@ function cpuStrategicPassForbiddenByAbsolute(i){
   return false;
 }
 
-async function cpuTryPass(i){
+async function cpuTryPass(i,currentLegal=null){
   // CPUの全パス経路をここに集約する。
   // 空場ではログ・効果音・passedフラグを一切発生させない。
   if(!G.pile)return false;
   const p=G.players[i];
-  const hasAnyLegalReply=allLegal(p).length>0;
+
+  // 通常は従来どおりルール上の合法手を見る。
+  // ただし呼び出し側から「絶対禁止適用後の候補」が渡された場合は、
+  // その候補だけを「実際に出せる手」として扱う。
+  // これにより、たとえば相手のスペード3が確定していてJK単騎が絶対禁止なのに、
+  // rawな合法手としてJKが存在するためパスまで禁止されるデッドロックを防ぐ。
+  const hasAnyLegalReply=Array.isArray(currentLegal)
+    ? currentLegal.length>0
+    : allLegal(p).length>0;
   // 【絶対】自分がパスすると、次の相手がその1手で上がれる場合はパスしない。
   // ただしこれは「出せる手があるのにパスする」場合だけ適用する。
   // 合法な応手が1つもない場合はパスが強制なので、この禁止条件では止めない。
@@ -4800,7 +4808,9 @@ async function runCpu(){
       // 安全手そのものが存在しない不可避局面では、停止せず実合法手を復元する。
       legal=rawLegal.filter(a=>!isAbsoluteForbidden(a));
     }else{
-      if(await cpuTryPass(i))return;
+      // 絶対禁止を適用した結果、実際に選べる出札が0件。
+      // rawLegalに禁止札が残っていても、それを理由にパスを禁止しない。
+      if(await cpuTryPass(i,legal))return;
     }
   }
 
@@ -5048,6 +5058,7 @@ async function runCpu(){
   // 【優先】まとまり判定はまず手札全体を最小組数で分割する。
   // 同じ最小組数で単品数が異なる分け方があり、
   // 現在の場に対して一方ならまとまりを崩さず応手できる場合は、パスしなくて済む方を採用する。
+  // ただし残り手札が5組以上なら、この優先条件ではJokerを使う出し方を採用しない。
   // また、組数・単品数まで同じ別の最適分割で合法手が1組として成立する場合は、
   // その手を「まとまり崩し」と判定しない。
   const optimalPartition=cpuPartitionAvoidingPass(
@@ -6127,9 +6138,11 @@ async function runCpu(){
 
   if(!legal.length){
     // 場札がある場合のみ最終的にパス可能。
-    if(await cpuTryPass(i))return;
+    // ここでは絶対禁止後の候補が0件なので、禁止札を「返せる手」と数えない。
+    if(await cpuTryPass(i,legal))return;
 
-    // 理論上ここには到達しないが、手番を失わないよう再評価する。
+    // currentLegal=[] を渡した場あり局面では cpuTryPass が必ずパスするため、
+    // 通常ここには到達しない。念のため停止ではなく再評価を残す。
     G.turn=i;
     render();
     setTimeout(runCpu,0);
@@ -6429,6 +6442,11 @@ function cpuPartitionAvoidingPass(hand,revolution,basePartition,legalMoves){
 
   const candidates=[];
   for(const a of legalMoves){
+    // 追加条件：
+    // 残り手札が5組以上の時、この「パスしなくて済む分け方」のために
+    // Jokerを使う出し方は採用しない。
+    if(basePartition.groupCount>=5&&a.cards.some(c=>c.joker))continue;
+
     const used=new Set(a.cards.map(c=>c.id));
     const remaining=hand.filter(c=>!used.has(c.id));
     const rest=optimalHandPartition(remaining,revolution);
