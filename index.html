@@ -4823,11 +4823,15 @@ async function runCpu(){
   }
   if(!legal.length){
     if(!G.pile&&nonFoulLegal.length){
-      // 空場ではパス不可。優先条件で候補が消えていても安全な合法手を復元する。
-      legal=[...availableNonFoulLegal()];
+      // 空場ではパス不可。
+      // 戦略上の絶対禁止（例：相手がS3を持つ時のJoker温存）より、反則上がり回避を優先する。
+      // したがって availableNonFoulLegal が0件でも nonFoulLegal から復元し、
+      // 「通常札を出してJokerだけ残す」ような手は復活させない。
+      legal=[...nonFoulLegal];
     }else if(!G.pile&&rawLegal.length){
-      // 安全手そのものが存在しない不可避局面では、停止せず実合法手を復元する。
-      legal=rawLegal.filter(a=>!isAbsoluteForbidden(a));
+      // nonFoulLegal 自体が0件なら、どの出し方でも反則回避不能な不可避局面。
+      // この場合に限って実合法手を復元する。
+      legal=[...rawLegal];
     }else{
       // 絶対禁止を適用した結果、実際に選べる出札が0件。
       // rawLegalに禁止札が残っていても、それを理由にパスを禁止しない。
@@ -6150,11 +6154,15 @@ async function runCpu(){
   }
 
   // 最終フォールバック：
-  // 空場ではパスできないため、絶対条件同士が両立せず「安全な合法手」が0件になった場合でも
-  // ゲームを停止させない。実際にルール上出せる rawLegal から必ず1手選ぶ。
-  // これは通常の優先順位では使わず、nonFoulLegal すら0件の不可避局面だけで発動する。
-  if(!legal.length&&!G.pile&&rawLegal.length){
-    legal=rawLegal.filter(a=>!isAbsoluteForbidden(a));
+  // 空場ではパスできないため候補を復元するが、反則回避可能な手が1つでもある限り
+  // rawLegal には戻さない。戦略上のJoker禁止より反則上がり回避を優先する。
+  if(!legal.length&&!G.pile){
+    if(nonFoulLegal.length){
+      legal=[...nonFoulLegal];
+    }else if(rawLegal.length){
+      // 本当に反則回避不能な局面だけ rawLegal を許可する。
+      legal=[...rawLegal];
+    }
   }
 
   if(!legal.length){
@@ -6177,6 +6185,15 @@ async function runCpu(){
       return;
     }
   }
+  // 最終安全弁：後段のどの優先条件・復元処理を通っても、
+  // 「出した後に反則札しか残らない手」が選ばれそうなら、反則回避可能な手へ差し替える。
+  // 特に相手がS3を持つためJoker単騎が戦略上禁止されていても、
+  // Jokerを最後の1枚に残して反則上がりするよりJokerを先に処理する。
+  if(legal.length&&moveLeavesOnlyFoulCards(p,legal[0])&&nonFoulLegal.length){
+    const rescue=nonFoulLegal.find(a=>!moveLeavesOnlyFoulCards(p,a));
+    if(rescue)legal=[rescue];
+  }
+
   await playMove(i,legal[0]);
   return;
   }finally{
