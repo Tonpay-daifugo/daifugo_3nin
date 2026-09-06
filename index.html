@@ -2525,7 +2525,7 @@ function cpuStrongModeOpponents(i){
   if(CPU_MODE!=='strong')return null;
   return G.players.map((p,j)=>({p,j})).filter(x=>x.j!==i&&!x.p.finished);
 }
-function cpuStrongModePlayerHasReply(target,a,revolutionBefore,forbidSingleJoker=false){
+function cpuStrongModePlayerHasReply(target,a,revolutionBefore,forbidSingleJoker=false,effectiveLock=null){
   if(CPU_MODE!=='strong'||target<0||!G.players[target]||G.players[target].finished)return false;
   const hand=G.players[target].hand;
 
@@ -2543,8 +2543,31 @@ function cpuStrongModePlayerHasReply(target,a,revolutionBefore,forbidSingleJoker
 
   // Use a local compatibility check mirroring current pile semantics.
   const responseRev=a.revolution?!revolutionBefore:revolutionBefore;
+  const respectsLock=cand=>{
+    if(!effectiveLock)return true;
+    const natural=cand.cards.filter(c=>!c.joker).map(c=>c.suit).sort();
+    const jokerCount=cand.cards.filter(c=>c.joker).length;
+
+    if(cand.type==='single'){
+      // 単騎Jokerだけは縛りを無視できる。
+      return jokerCount===1||natural[0]===effectiveLock;
+    }
+    if(cand.type==='straight'){
+      return natural.every(s=>s===effectiveLock);
+    }
+
+    const required=effectiveLock.split('').sort();
+    const remaining=[...required];
+    for(const suit of natural){
+      const idx=remaining.indexOf(suit);
+      if(idx<0)return false;
+      remaining.splice(idx,1);
+    }
+    return remaining.length<=jokerCount;
+  };
   const canBeat=cand=>{
     if(cand.type!==a.type||cand.n!==a.n)return false;
+    if(!respectsLock(cand))return false;
     return strength(cand.rank,responseRev)>strength(a.rank,responseRev);
   };
   for(const cs of combinations(hand)){
@@ -2772,13 +2795,28 @@ function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=
     (j===i?ownAfter:p.hand.length)>=10
   );
 
+  // 第1段階の入口で現在のトリックを評価するときだけ、
+  // 「現在すでに成立している縛り」または「この手を重ねることで新たに成立する縛り」を反映する。
+  // 場が流れた後の再帰探索では respectCurrentPasses=false なので、過去の縛りを持ち越さない。
+  let effectiveLock=null;
+  if(respectCurrentPasses&&G.pile){
+    effectiveLock=G.lock||null;
+    if(!effectiveLock&&!a.cards.some(c=>c.joker)){
+      const prevSig=suitSignature(G.pile);
+      const nextSig=suitSignature(a);
+      if(prevSig&&nextSig&&prevSig===nextSig)effectiveLock=nextSig;
+    }
+  }
+
   if(CPU_MODE==='strong'){
     const opponents=cpuStrongModeOpponents(i)||[];
     return opponents.every(o=>!cpuStrongModePlayerHasReply(
-      o.j,a,revolutionBefore,allThreeTenOrMore
+      o.j,a,revolutionBefore,allThreeTenOrMore,effectiveLock
     ));
   }
-  // 場が流れた直後にこの手を出したと仮定し、CPUの記憶から相手が絶対に返せないかを保守的に証明する。
+
+  // 場が流れた直後、または現在のトリックにこの手を重ねた直後を仮定し、
+  // CPUの記憶から相手が絶対に返せないかを保守的に証明する。
   // 自分の現手札・既出札・判明済みブラインドは相手が持ち得ない。交換で手放した過去の自札は除外しない。
   const mem=cpuMemory(i);
   const unavailable=new Set([...mem.current,...mem.played]);
@@ -2807,11 +2845,41 @@ function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=
     if(a.cards.length===1&&a.cards[0].joker){
       return !unseen.some(c=>c.id==='S3');
     }
+
+    // 単騎Jokerは縛りを無視できるため、所在不明なら従来どおり確実とは断定しない。
     if(unseenSingleJoker)return false;
-    return !natural.some(c=>strength(c.rank,responseRev)>strength(a.rank,responseRev));
+
+    // 縛り中は、そのスートの自然札だけが通常の単騎応手候補になる。
+    const naturalReplyPool=effectiveLock
+      ?natural.filter(c=>c.suit===effectiveLock)
+      :natural;
+    return !naturalReplyPool.some(c=>
+      strength(c.rank,responseRev)>strength(a.rank,responseRev)
+    );
   }
 
   if(a.type==='group'){
+    if(effectiveLock){
+      const requiredSuits=effectiveLock.split('').sort();
+
+      // 縛り中のペア/トリオは、必要スート集合を自然札＋Jokerで満たせる場合だけ応手可能。
+      for(const rk of RANKS){
+        if(strength(rk,responseRev)<=strength(a.rank,responseRev))continue;
+
+        const naturalSuits=new Set(
+          natural
+            .filter(c=>c.rank===rk)
+            .map(c=>c.suit)
+        );
+        let missing=0;
+        for(const suit of requiredSuits){
+          if(!naturalSuits.has(suit))missing++;
+        }
+        if(missing<=(unseenJoker?1:0))return false;
+      }
+      return true;
+    }
+
     const counts={};
     for(const c of natural)counts[c.rank]=(counts[c.rank]||0)+1;
     for(const [rkStr,count] of Object.entries(counts)){
@@ -2830,26 +2898,30 @@ function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=
     // 革命中の最強3枚階段 Joker・3・4 が相手側に成立し得るなら、
     // それより弱い3枚階段は「絶対に返せない」とは証明しない。
     if(responseRev&&a.n===3&&unseenJoker){
-      for(const [s] of SUITS){
-        if(bySuit[s].has(3)&&bySuit[s].has(4)){
+      const suitsToCheck=effectiveLock?[effectiveLock]:SUITS.map(([s])=>s);
+      for(const s of suitsToCheck){
+        if(bySuit[s]&&bySuit[s].has(3)&&bySuit[s].has(4)){
           const specialPower=strength(2,true);
           if(specialPower>strength(a.rank,true))return false;
         }
       }
     }
 
-    for(const [s] of SUITS){
+    const suitsToCheck=effectiveLock?[effectiveLock]:SUITS.map(([s])=>s);
+    for(const s of suitsToCheck){
+      if(!bySuit[s])continue;
       for(let start=3;start<=16-a.n+1;start++){
         if(strength(start,responseRev)<=strength(a.rank,responseRev))continue;
         const seq=Array.from({length:a.n},(_,k)=>start+k);
         const missing=seq.filter(r=>!bySuit[s].has(r)).length;
-        if(missing<= (unseenJoker?1:0))return false;
+        if(missing<=(unseenJoker?1:0))return false;
       }
     }
     return true;
   }
   return false;
 }
+
 function hasTwoOrMorePlayersWhoHaveNeverPlayed(){
   const records=G.playedByRecords||[];
   let count=0;
@@ -5103,8 +5175,6 @@ async function runCpu(){
   const partitionSingles=[...optimalPartition.singles];
 
   function bundleBreakPenalty(a){
-    if(mustUseS3AgainstJoker&&isSingleS3(a))return 0;
-
     // 現在選ばれた分割では一部を崩して見えても、
     // 同じ最小組数・同じ最小単品数の別分割でこの手が1組になるなら崩し扱いしない。
     if(cpuMoveFitsAnyEqualOptimalPartition(
@@ -5124,7 +5194,9 @@ async function runCpu(){
         }
       }
       if(overlap>0&&overlap<bundle.size){
-        // 空場でない時は、通常2／革命3はまとまりから崩してよい。
+        // 空場でない時、通常2／革命3は
+        // 「出せる既存単品がなく、かつ階段の一部でない」場合、
+        // または「階段から抜いても残りで階段が成立する」場合に崩してよい。
         // さらに相手がその最強札を持っていないことが確定していれば、
         // 通常A／革命4も崩してよい。
         const allAllowed=overlappedCards.length>0&&overlappedCards.every(canBreakProtectedRankOnFollow);
@@ -5136,15 +5208,55 @@ async function runCpu(){
   const remainingGroups=Math.max(1,optimalPartition.groupCount);
 
   // まとまり崩しフィルタ前の合法手を保持する。
-  // A/2（革命中は4/3）を仮に外したときに解放される弱いカードの判定は、
-  // フィルタ後のlegalではなく、この元の合法手一覧を基準に行う。
   const legalBeforePartitionFilter=[...legal];
+
+  // 「出せる単品」は、現在採用している最適分割ですでに単品になっており、
+  // 現在の場へ単品として合法的に出せるカードを指す。
+  const partitionSingleIdsForBreakRule=new Set(partitionSingles.map(c=>c.id));
+  const hasPlayablePartitionSingle=legalBeforePartitionFilter.some(a=>
+    a.type==='single'&&
+    a.cards.length===1&&
+    partitionSingleIdsForBreakRule.has(a.cards[0].id)
+  );
+
+  // 指定カードが現在の最適分割の階段に含まれるか、
+  // またそのカードを1枚抜いても残りだけで階段が成立するかを判定する。
+  function protectedStraightStatus(card){
+    const straights=optimalPartition.bundles.filter(bundle=>
+      bundle.type==='straight'&&
+      bundle.cards.some(c=>c.id===card.id)
+    );
+
+    if(!straights.length)return {inStraight:false,survivesWithoutCard:false};
+
+    const survivesWithoutCard=straights.some(bundle=>{
+      const remaining=bundle.cards.filter(c=>c.id!==card.id);
+      if(remaining.length<3)return false;
+      return analysesInState(remaining,G.revolution).some(a=>
+        a.type==='straight'&&
+        a.cards.length===remaining.length
+      );
+    });
+
+    return {inStraight:true,survivesWithoutCard};
+  }
 
   function canBreakProtectedRankOnFollow(card){
     if(isLead||!card||card.joker)return false;
     const freeRank=G.revolution?3:15;   // 通常2、革命3
     const conditionalRank=G.revolution?4:14; // 通常A、革命4
-    if(card.rank===freeRank)return true;
+
+    // 通常2／革命3：
+    // ・階段の一部でない場合は、現在の場に出せる既存単品が1枚もない時だけ崩してよい。
+    // ・階段の一部でも、そのカードを抜いた残りだけで階段が成立するなら崩してよい。
+    if(card.rank===freeRank){
+      const straightStatus=protectedStraightStatus(card);
+      if(!straightStatus.inStraight)return !hasPlayablePartitionSingle;
+      return straightStatus.survivesWithoutCard;
+    }
+
+    // 通常A／革命4は、パスしていない相手が通常2／革命3を
+    // 持っていないことが確定している場合に限り崩してよい。
     if(card.rank===conditionalRank&&unpassedOpponentsCertainlyLackRank(freeRank))return true;
     return false;
   }
@@ -5164,67 +5276,70 @@ async function runCpu(){
     return SUITS.every(([s])=>unavailable.has(`${s}${rank}`));
   }
 
-  // 【優先】2/A（革命中は3/4）をまとまりから崩せる局面で、
-  // そのカードを仮にまとまりから外した結果、より弱いカードが単品として解放されるなら、
-  // 2/Aより先にその弱いカードを出す。
-  //
-  // ここでは実際に2/Aを出した後を記憶するのではなく、現在手札だけを使って仮想判定する。
-  function hypotheticallyFreedWeakSingles(){
-    if(isLead)return [];
+  // 【優先】相手の残り手札が6枚以下で場札が単品のとき、
+  // 現在の最適分割に含まれる階段の端を1枚出しても、残りが階段として成立するならその単品を優先する。
+  // 端がJokerで埋められている場合は、その端の隣にある自然札を対象にする。
+  function shortOpponentStraightEdgeSingleIds(){
+    if(!G.pile||G.pile.type!=='single')return new Set();
 
-    const freeRank=G.revolution?3:15;          // 通常2、革命3
-    const conditionalRank=G.revolution?4:14;  // 通常A、革命4
-    const candidates=[];
+    const hasShortOpponent=G.players.some((op,j)=>
+      j!==i&&!op.finished&&op.hand.length<=6
+    );
+    if(!hasShortOpponent)return new Set();
+
+    const result=new Set();
 
     for(const bundle of optimalPartition.bundles){
-      for(const highCard of bundle.cards){
-        if(highCard.joker)continue;
+      if(bundle.type!=='straight'||!bundle.sequence||bundle.cards.length<4)continue;
 
-        const isFree=highCard.rank===freeRank;
-        const isConditional=
-          highCard.rank===conditionalRank&&
-          unpassedOpponentsCertainlyLackRank(freeRank);
+      const naturalByRank=new Map(
+        bundle.cards
+          .filter(c=>!c.joker)
+          .map(c=>[c.rank,c])
+      );
+      const seq=bundle.sequence;
+      const edgeSpecs=[
+        {edgeRank:seq[0],neighborRank:seq[1]},
+        {edgeRank:seq[seq.length-1],neighborRank:seq[seq.length-2]}
+      ];
 
-        if(!isFree&&!isConditional)continue;
-
-        const remaining=p.hand.filter(c=>c.id!==highCard.id);
-        const after=optimalHandPartition(remaining,G.revolution);
-        const afterSingleIds=new Set(after.singles.map(c=>c.id));
-        const highPower=strength(highCard.rank,G.revolution);
-
-        for(const c of bundle.cards){
-          if(c.id===highCard.id||c.joker)continue;
-          if(!afterSingleIds.has(c.id))continue;
-          if(strength(c.rank,G.revolution)>=highPower)continue;
-
-          // 現在の場に、その解放カード自体を単品として合法的に出せる場合だけ候補にする。
-          // ここではまとまり崩しフィルタ前の合法手一覧を使う。
-          const playableNow=legalBeforePartitionFilter.some(a=>
-            a.type==='single'&&
-            a.cards.length===1&&
-            a.cards[0].id===c.id
-          );
-          if(playableNow)candidates.push(c);
+      for(const {edgeRank,neighborRank} of edgeSpecs){
+        // 自然札が端にあるなら、その端札を候補にする。
+        // 端がJokerで補われているなら、その隣の自然札を候補にする。
+        let candidate=naturalByRank.get(edgeRank)||null;
+        if(!candidate){
+          const jokerAtEdge=bundle.cards.some(c=>c.joker)&&!naturalByRank.has(edgeRank);
+          if(jokerAtEdge)candidate=naturalByRank.get(neighborRank)||null;
         }
+        if(!candidate)continue;
+
+        // その1枚を抜いた後も、残りのカードだけで3枚以上の階段が成立する場合だけ有効。
+        const remaining=bundle.cards.filter(c=>c.id!==candidate.id);
+        if(remaining.length<3)continue;
+        const stillStraight=analysesInState(remaining,G.revolution).some(a=>
+          a.type==='straight'&&a.cards.length===remaining.length
+        );
+        if(!stillStraight)continue;
+
+        // 現在の場札に対して、そのカードを単品として実際に出せる場合だけ候補にする。
+        const playable=legalBeforePartitionFilter.some(a=>
+          a.type==='single'&&
+          a.cards.length===1&&
+          a.cards[0].id===candidate.id
+        );
+        if(playable)result.add(candidate.id);
       }
     }
 
-    // 重複を除去。
-    const seen=new Set();
-    return candidates.filter(c=>{
-      if(seen.has(c.id))return false;
-      seen.add(c.id);
-      return true;
-    });
+    return result;
   }
 
-  const freedWeakSinglesNow=hypotheticallyFreedWeakSingles();
-  const freedWeakIdsNow=new Set(freedWeakSinglesNow.map(c=>c.id));
+  const shortOpponentStraightEdgeIds=shortOpponentStraightEdgeSingleIds();
 
   // 【まとまり判定】組数は「その手を出す前の現在手札」の最適分割で判定する。
   // 現在手札の最適分割に含まれるまとまりを部分的に崩す手は避ける。
   // そのような手しかない場合は、後段でパス可能ならパスする。
-  // 確定上がりルートは絶対条件なのでこの判定より優先する。
+  // 確定上がりルート、および「Joker単騎の出し手が残り8枚以下ならS3返し」はこの判定より優先する。
   let mustPassForGroupIncrease=false;
   if(legal.length&&!certainFinishMoves.size){
     const partitionBundleKeys=new Set(
@@ -5248,20 +5363,35 @@ async function runCpu(){
         p.hand,G.revolution,a,currentOptimalPartition
       ))return true;
 
-      // 相手のJoker単騎には、出し手の残り手札が8枚以下の時だけ、
-      // まとまりを崩してでもスペード3を出してよい。
-      if(mustUseS3AgainstJoker&&isSingleS3(a))return true;
 
-      // A/2（革命中は4/3）を仮にまとまりから外すことで解放される
-      // より弱い単品は、まとまり崩しフィルタの例外として残す。
+      // 【優先例外】相手の残り手札が6枚以下・場札が単品で、
+      // 階段の端（端がJokerならその隣）を出しても階段を維持できる場合は、
+      // その単品をまとまり崩しフィルタで除外しない。
       if(
         a.type==='single'&&
         a.cards.length===1&&
-        freedWeakIdsNow.has(a.cards[0].id)
+        shortOpponentStraightEdgeIds.has(a.cards[0].id)
+      )return true;
+
+      // 【優先例外】相手がJoker単騎を出し、その出し手の残り手札が8枚以下なら、
+      // まとまりを崩してでもスペード3単騎を残す。
+      // これにより後段の mustUseS3AgainstJoker が実際に候補として選択できる。
+      if(
+        G.pile&&
+        G.pile.type==='single'&&
+        G.pile.rank===16&&
+        G.lead!==null&&
+        G.lead!==i&&
+        G.players[G.lead]&&
+        G.players[G.lead].hand.length<=8&&
+        a.type==='single'&&
+        a.cards.length===1&&
+        a.cards[0].id==='S3'
       )return true;
 
       // 空場でない時の例外：
-      // 通常2／革命3はまとまりから崩してよい。
+      // 通常2／革命3は、出せる既存単品がなく階段の一部でない場合、
+      // または階段の一部でも、そのカードを抜いてなお階段が成立する場合に崩してよい。
       // 相手が通常2／革命3を持っていないことが確定している場合は、
       // 通常A／革命4も崩してよい。組数が増えても許可する。
       if(!isLead&&a.cards.length>0&&a.cards.every(canBreakProtectedRankOnFollow))return true;
@@ -5275,6 +5405,18 @@ async function runCpu(){
     }else{
       mustPassForGroupIncrease=true;
     }
+  }
+
+  // 【優先】相手の残り手札が6枚以下で場札が単品なら、
+  // 階段を維持できる端札（端がJokerならその隣）が出せる場合は、その候補だけを残す。
+  // 複数候補がある場合は後段の通常比較で弱い方を選ぶ。
+  if(shortOpponentStraightEdgeIds.size&&legal.length&&!certainFinishMoves.size){
+    const edgeMoves=legal.filter(a=>
+      a.type==='single'&&
+      a.cards.length===1&&
+      shortOpponentStraightEdgeIds.has(a.cards[0].id)
+    );
+    if(edgeMoves.length)legal=edgeMoves;
   }
 
   // 現在カードを出した相手がスペード3を持っている可能性が残るかをCPU記憶から判定する。
@@ -5475,32 +5617,8 @@ async function runCpu(){
       }
     }
 
-    // 【優先】2/A（革命中は3/4）を仮にまとまりから外すことで
-    // より弱いカードが現在単品として出せるようになるなら、その弱いカードを先に出す。
-    if(!certain&&freedWeakSinglesNow.length){
-      const weakestFreedPower=Math.min(
-        ...freedWeakSinglesNow.map(c=>strength(c.rank,G.revolution))
-      );
-
-      const isFreedWeakSingle=
-        single&&
-        !a.cards[0].joker&&
-        freedWeakIdsNow.has(a.cards[0].id)&&
-        strength(a.cards[0].rank,G.revolution)===weakestFreedPower;
-
-      const highRank=G.revolution?3:15;
-      const lowerHighRank=G.revolution?4:14;
-      const isBreakHighSingle=
-        single&&
-        !a.cards[0].joker&&
-        (a.cards[0].rank===highRank||a.cards[0].rank===lowerHighRank);
-
-      if(isFreedWeakSingle)s-=2600;
-      else if(isBreakHighSingle)s+=1200;
-    }
-
     // 0) ペア・トリオ・階段のまとまりを崩す手を避ける。
-    if(!certain&&!(mustUseS3AgainstJoker&&isSingleS3(a)))s+=bundleBreakPenalty(a);
+    if(!certain)s+=bundleBreakPenalty(a);
 
     // 【優先】ペアが4組以上ある場合、通常時は3のペアを出さない。
     // 革命中は3ではなく2のペアを出さない。
@@ -5905,40 +6023,7 @@ async function runCpu(){
   }
 
   // 最終比較は、これまで指定された優先条件（preferredScore）のみを使用する。
-  // 同点の場合：
-  // ・数字の差が3以内、かつ通常時は2以外、革命中は3以外で縛りを成立させられるなら、その手を優先する。
-  // ・通常時の2、革命中の3でしか縛れない手は縛り優先の対象外。
-  // ・それ以外はゲーム上弱い数字を優先する。
-  // ・それでも同じなら候補生成順。
-  const tieCreatesLock=a=>{
-    if(!G.pile||a.cards.some(c=>c.joker))return false;
-
-    // 縛り優先から除外する最強ランク。
-    // 通常時は2、革命中は3。
-    const excludedLockRank=G.revolution?3:15;
-    if(a.rank===excludedLockRank)return false;
-
-    const prevSig=suitSignature(G.pile);
-    const nowSig=suitSignature(a);
-    if(!(prevSig&&nowSig&&prevSig===nowSig))return false;
-
-    // 【追加条件】
-    // そのスートで、今出す数字より強い「単品」を自分が持っている時だけ
-    // 同スコア時の「縛り優先」を有効にする。
-    //
-    // ここでいう単品は、現在の最適なまとまり判定で singles に分類されたカード。
-    // 単騎の縛りを想定した条件なので、複数枚出しによる縛りにはこの優先を付けない。
-    if(a.type!=='single'||a.cards.length!==1)return false;
-    const suit=a.cards[0].suit;
-    if(!suit)return false;
-
-    return currentOptimalPartition.singles.some(c=>
-      !c.joker &&
-      c.id!==a.cards[0].id &&
-      c.suit===suit &&
-      strength(c.rank,G.revolution)>strength(a.rank,G.revolution)
-    );
-  };
+  // スコアが同じ場合はゲーム上弱い数字を優先し、それでも同じなら候補生成順。
   const tieRankStrength=a=>strength(a.rank,G.revolution);
 
   legal=legal
@@ -5946,28 +6031,14 @@ async function runCpu(){
       a,
       idx,
       score:preferredScore(a),
-      lock:tieCreatesLock(a)?0:1,
       rank:tieRankStrength(a)
     }))
     .sort((x,y)=>{
       const scoreDiff=x.score-y.score;
       if(scoreDiff)return scoreDiff;
 
-      const rankGap=Math.abs(x.rank-y.rank);
-
-      // 数字差3以内：2以外で縛れる手を優先。その後に弱い数字。
-      if(rankGap<=3){
-        const lockDiff=x.lock-y.lock;
-        if(lockDiff)return lockDiff;
-        const rankDiff=x.rank-y.rank;
-        if(rankDiff)return rankDiff;
-      }else{
-        // 数字差4以上：弱い数字を優先。その後に縛り。
-        const rankDiff=x.rank-y.rank;
-        if(rankDiff)return rankDiff;
-        const lockDiff=x.lock-y.lock;
-        if(lockDiff)return lockDiff;
-      }
+      const rankDiff=x.rank-y.rank;
+      if(rankDiff)return rankDiff;
 
       return x.idx-y.idx;
     })
@@ -5988,7 +6059,7 @@ async function runCpu(){
 
   // 【まとまり判定】組数が増える手しか残っていない場合はパスする。
   // 空場や各種の絶対パス禁止局面では、パスせず合法手を出す。
-  if(mustPassForGroupIncrease&&!mustUseS3AgainstJoker&&canPassAsAction&&!certainNow.length){
+  if(mustPassForGroupIncrease&&canPassAsAction&&!certainNow.length){
     if(await cpuTryPass(i))return;
   }
 
