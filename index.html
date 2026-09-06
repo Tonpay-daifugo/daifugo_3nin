@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="ja">
 <head>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>3人制 大富豪</title>
@@ -1326,6 +1329,15 @@ body.exchangePhase .top{
 
 </style>
 </head>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .then((reg) => console.log("[PWA] 登録成功:", reg.scope))
+      .catch((err) => console.error("[PWA] 登録失敗:", err));
+  });
+}
+</script>
 <body>
 <div class="app">
   <div class="top"><div class="title">🃏 3人制 大富豪</div><div class="controls"><label class="badge volumeControl">音量 <input id="volumeSlider" type="range" min="0" max="100" value="70"><span id="volumeValue">70%</span></label><button class="btn modeActive" id="normalModeBtn">通常</button><button class="btn" id="spyModeBtn">透視</button><button class="btn" id="strongModeBtn">最強</button><button class="btn" id="rulesBtn">ルール</button><button class="btn danger" id="newBtn">最初から</button></div></div>

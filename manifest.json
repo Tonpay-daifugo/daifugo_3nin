@@ -1,0 +1,10 @@
+{
+  "name": "3人大富豪",
+  "short_name": "3人大富豪",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "ja"
+}
