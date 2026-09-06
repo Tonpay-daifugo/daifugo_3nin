@@ -1,11 +1,11 @@
 const CACHE_PREFIX = "daifugo-3nin-cache-";
-const CACHE_NAME = CACHE_PREFIX + "v1";
+const CACHE_NAME = CACHE_PREFIX + "v2";
 // バージョンを更新するたびに名前を変えること！
 
 const FILES_TO_CACHE = [
   "./",
   "./index.html",
-  "./manifest.json",
+//  "./manifest.json",　これをキャッシュさせると更新した時にandroidでうまくいかないことがある
   "./icon-3nin-192.png",
   "./icon-3nin-512.png"
 ];
