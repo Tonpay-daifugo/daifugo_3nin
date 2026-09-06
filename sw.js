@@ -49,9 +49,11 @@ self.addEventListener("fetch", (event) => {
         return cachedResponse;
       }
 
-      if (event.request.mode === "navigate") {
-        return caches.match("./index.html");
-      }
+  if (event.request.mode === "navigate") {
+    return fetch(event.request).catch(() => {
+      return caches.match("./index.html");
+    });
+  }
 
       return fetch(event.request);
     })
