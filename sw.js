@@ -6,8 +6,8 @@ const FILES_TO_CACHE = [
   "./",
   "./index.html",
   "./manifest.json",
-//  "./icon-192.png",
-//  "./icon-512.png"
+  "./icon-3nin-192.png",
+  "./icon-3nin-512.png"
 ];
 
 // インストール時に必要なファイルをキャッシュ
