@@ -715,7 +715,12 @@ padding:3px 0;border-bottom:1px solid #e6c75a18
   font-weight:900;
   letter-spacing:.12em;
   text-align:center;
-  text-shadow:0 5px 18px #000,0 0 28px currentColor;
+  -webkit-text-stroke:1.5px #161008;
+  paint-order:stroke fill;
+  text-shadow:
+    0 2px 2px #000,
+    0 4px 8px #000a,
+    0 0 12px currentColor;
   animation:effectPop .8s ease both;
 }
 .effectText.eight{color:#ff9f1c}
@@ -896,6 +901,16 @@ display:block;
   justify-content:flex-start;
   text-align:left;
 }
+#resultModeSwitch:not(.resultStrongBtn){
+  background:linear-gradient(180deg,#f7f7f7 0%,#e4e4e4 52%,#c9c9c9 100%);
+  color:#303030;
+  border:1px solid #a9a9a9;
+  text-shadow:0 1px 0 #fff;
+}
+#resultModeSwitch:not(.resultStrongBtn):hover{
+  background:linear-gradient(180deg,#ffffff 0%,#ececec 52%,#d4d4d4 100%);
+}
+
 .resultStrongBtn{
   border:1px solid #1a1a1a !important;
   background:linear-gradient(180deg,#434343 0%,#151515 52%,#030303 100%) !important;
@@ -1536,7 +1551,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v358</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
