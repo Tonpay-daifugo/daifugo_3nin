@@ -325,12 +325,13 @@ outline:2px solid #ffe36f;box-shadow:0 0 18px #ffd34f99,inset 0 1px 0 #fff4
 
 .cpuInfoRow{
   display:grid;
-  grid-template-columns:minmax(0,1.15fr) minmax(0,.9fr) minmax(0,.85fr) minmax(0,.65fr) minmax(0,.9fr);
+  grid-template-columns:repeat(5,minmax(0,1fr));
   justify-content:stretch;
   align-items:center;
   column-gap:4px;
   width:100%;
   min-width:0;
+  justify-items:center;
 }
 .cpuInfoRow .name{display:contents}
 .cpuNameText,
@@ -1315,7 +1316,7 @@ margin:15px;
   }
 
   .cpuInfoRow{
-    grid-template-columns:minmax(0,1.15fr) minmax(0,.9fr) minmax(0,.85fr) minmax(0,.65fr) minmax(0,.9fr);
+    grid-template-columns:repeat(5,minmax(0,1fr));
     column-gap:3px;
   }
 
@@ -1551,7 +1552,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v358</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v360</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -5417,6 +5418,56 @@ async function runCpu(){
   // まとまり崩しフィルタ前の合法手を保持する。
   const legalBeforePartitionFilter=[...legal];
 
+  // 【優先】残り手札が最適分割で2組であり、その2組をどちらから出しても
+  // 相手に返される可能性が残る場合は、階段または革命になる組を優先する。
+  // 両方が該当する場合は、現在の革命状態において数字が弱い方を優先する。
+  //
+  // 「返される可能性がある」は、
+  // ・8切り／最強階段のように相手の応手なしで場が流れる手ではない
+  // ・CPUの既知情報から「全員が絶対に返せない」と証明できない
+  // の両方を満たす場合とする。
+  const twoGroupStraightOrRevolutionPriorityKeys=new Set();
+
+  if(optimalPartition.groupCount===2&&!certainFinishMoves.size){
+    const partitionGroupKeys=[
+      ...optimalPartition.bundles.map(a=>a.cards.map(c=>c.id).sort().join('|')),
+      ...optimalPartition.singles.map(c=>c.id)
+    ];
+
+    const partitionMoves=partitionGroupKeys
+      .map(k=>legalBeforePartitionFilter.find(a=>moveKey(a)===k)||null)
+      .filter(Boolean);
+
+    // 「どちらを出しても」を満たすため、現在の場に対して2組とも実際に出せる場合だけ発動する。
+    if(partitionMoves.length===2){
+      const bothMayBeAnswered=partitionMoves.every(a=>
+        !moveClearsPileWithoutOpponent(a,G.revolution)&&
+        !cpuCanProveLeadMoveUnanswerable(
+          i,
+          a,
+          G.revolution,
+          Math.max(0,p.hand.length-a.n),
+          true
+        )
+      );
+
+      if(bothMayBeAnswered){
+        const specialMoves=partitionMoves.filter(a=>
+          a.type==='straight'||a.revolution
+        );
+
+        if(specialMoves.length){
+          const weakest=Math.min(...specialMoves.map(a=>strength(a.rank,G.revolution)));
+          for(const a of specialMoves){
+            if(strength(a.rank,G.revolution)===weakest){
+              twoGroupStraightOrRevolutionPriorityKeys.add(moveKey(a));
+            }
+          }
+        }
+      }
+    }
+  }
+
   // 「出せる単品」は、現在採用している最適分割ですでに単品になっており、
   // 現在の場へ単品として合法的に出せるカードを指す。
   const partitionSingleIdsForBreakRule=new Set(partitionSingles.map(c=>c.id));
@@ -5614,10 +5665,24 @@ async function runCpu(){
     }
   }
 
+  // 【優先】残り2組でどちらも返される可能性がある場合の
+  // 「階段／革命」優先を、通常の細かな出し方比較より先に適用する。
+  if(twoGroupStraightOrRevolutionPriorityKeys.size&&legal.length&&!certainFinishMoves.size){
+    const priorityMoves=legal.filter(a=>
+      twoGroupStraightOrRevolutionPriorityKeys.has(moveKey(a))
+    );
+    if(priorityMoves.length)legal=priorityMoves;
+  }
+
   // 【優先】相手の残り手札が6枚以下で場札が単品なら、
   // 階段を維持できる端札（端がJokerならその隣）が出せる場合は、その候補だけを残す。
   // 複数候補がある場合は後段の通常比較で弱い方を選ぶ。
-  if(shortOpponentStraightEdgeIds.size&&legal.length&&!certainFinishMoves.size){
+  if(
+    shortOpponentStraightEdgeIds.size&&
+    legal.length&&
+    !certainFinishMoves.size&&
+    !twoGroupStraightOrRevolutionPriorityKeys.size
+  ){
     const edgeMoves=legal.filter(a=>
       a.type==='single'&&
       a.cards.length===1&&
