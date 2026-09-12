@@ -1584,7 +1584,7 @@ if ("serviceWorker" in navigator) {
   <div class="panel scoreHistory" id="scoreHistory"></div>
   <div class="table">
     <div class="panel player" id="p1"><div class="cpuInfoRow"><div class="name" id="cpuName1">CPU 1</div><div class="role" id="role1">平民</div><div class="count" id="count1">13</div><div class="small" id="state1"></div></div><div class="opponentHand" id="opponentHand1"></div></div>
-    <div class="panel center"><div class="pilelabel" id="pileLabel">場は空です</div><div class="pile" id="pile"></div><div class="message" id="message"></div><button class="btn primary initialGameStartBtn" id="initialGameStartBtn" type="button">ゲーム開始</button></div>
+    <div class="panel center"><div class="pilelabel" id="pileLabel"></div><div class="pile" id="pile"></div><div class="message" id="message"></div><button class="btn primary initialGameStartBtn" id="initialGameStartBtn" type="button">ゲーム開始</button></div>
     <div class="panel player" id="p2"><div class="cpuInfoRow"><div class="name" id="cpuName2">CPU 2</div><div class="role" id="role2">平民</div><div class="count" id="count2">13</div><div class="small" id="state2"></div></div><div class="opponentHand" id="opponentHand2"></div></div>
   </div>
   <div class="panel handpanel">
@@ -1593,7 +1593,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v371</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v372</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -1991,7 +1991,7 @@ function render(){
 function renderPile(){
   const el=$('#pile');el.innerHTML='';
   const hist=G.pileHistory||[];
-  if(!G.pile||!hist.length){$('#pileLabel').textContent='場は空です';return}
+  if(!G.pile||!hist.length){$('#pileLabel').textContent=(G.phase==='playing'?'場は空です':'');return}
   const shown=hist.slice(-2);
   shown.forEach((entry,idx)=>{
     const wrap=document.createElement('div');
