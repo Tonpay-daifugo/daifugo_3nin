@@ -474,7 +474,7 @@ position:relative;
   min-height:62px;
   margin:auto;
   padding:15px 30px;
-  font-size:24px;
+  font-size:30px;
   align-items:center;
   justify-content:center;
   overflow:hidden;
@@ -1593,7 +1593,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v369</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v371</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -5161,8 +5161,8 @@ async function runCpu(){
   }
 
   // 【高優先】1人が上がって1対1になった直後、その上がった人の最後の場札に対して、
-  // 残った相手が「現在の場に返せる組み合わせ」を持ち得ないとCPUの記憶から証明できるなら、
-  // ジョーカーを温存する。ジョーカーなしで出せる手がなければパスする。
+  // 残った相手が「現在の場に返せる組み合わせ」を持ち得ないとCPUの記憶から証明でき、
+  // かつその相手が自分の直後（通常の手番順で次の席）にいるなら、自分もパスする。
   function remainingOpponentCannotReplyToCurrentPile(otherIndex){
     if(!G.pile)return false;
     if(CPU_MODE==='strong'){
@@ -5242,13 +5242,9 @@ async function runCpu(){
     const justFinishedLeader=G.lead!==null&&G.players[G.lead]&&G.players[G.lead].finished;
     if(G.pile&&activeNow.length===2&&justFinishedLeader&&!headsUpOpponentAtThreeOrLess&&!mustNotPassForRichAtThreeOrLess&&!commonPoorAtThreeOrLess){
       const other=activeNow.find(o=>o.j!==i);
-      if(other&&remainingOpponentCannotReplyToCurrentPile(other.j)){
-        const noJoker=legal.filter(a=>!a.cards.some(c=>c.joker));
-        if(noJoker.length){
-          legal=noJoker;
-        }else{
-          if(await cpuTryPass(i))return;
-        }
+      const otherIsImmediatelyBehind=!!other&&other.j===(i+1)%G.players.length;
+      if(otherIsImmediatelyBehind&&remainingOpponentCannotReplyToCurrentPile(other.j)){
+        if(await cpuTryPass(i,legal))return;
       }
     }
   }
