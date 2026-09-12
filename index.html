@@ -1307,6 +1307,18 @@ margin:15px;
     max-width:min(600px,calc(100vw - 24px));
   }
 
+
+  .top .controls > #normalModeBtn,
+  .top .controls > #spyModeBtn,
+  .top .controls > #strongModeBtn,
+  .top .controls > #rulesBtn,
+  .top .controls > #newBtn{
+    width:max-content;
+    min-width:0;
+    padding-left:10px;
+    padding-right:10px;
+    white-space:nowrap;
+  }
 }
 
 /* ===== Orientation-aware mobile/tablet layout ===== */
@@ -1593,7 +1605,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v372</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v373</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>

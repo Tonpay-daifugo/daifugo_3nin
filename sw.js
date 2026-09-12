@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "daifugo-3nin-cache-";
-const CACHE_NAME = CACHE_PREFIX + "v372";
+const CACHE_NAME = CACHE_PREFIX + "v373";
 // バージョンを更新するたびに名前を変えること！
 
 const FILES_TO_CACHE = [
