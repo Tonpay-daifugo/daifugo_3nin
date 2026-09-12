@@ -1032,36 +1032,6 @@ margin:15px;
   }
   .app{width:100%;margin:8px auto 14px;padding:10px;border-radius:22px}
 
-  .top > .controls{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:8px;
-    width:100%;
-  }
-  .top > .controls > .btn,
-  .top > .controls > .volumeControl{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:100%;
-    min-width:0;
-    max-width:none;
-    height:46px;
-    min-height:46px;
-    margin:0;
-    padding:8px 10px;
-    font-size:14px;
-    white-space:nowrap;
-  }
-  .top > .controls > .volumeControl{gap:5px}
-  .top > .controls > .volumeControl input{
-    width:62px;
-    min-width:0;
-  }
-  .top > .controls > .volumeControl #volumeValue{
-    min-width:34px;
-    text-align:right;
-  }
 
   .scoreHistory.scrollFixed{max-height:150px}
   .scoreHistory table{min-width:420px}
@@ -1308,17 +1278,6 @@ margin:15px;
   }
 
 
-  .top .controls > #normalModeBtn,
-  .top .controls > #spyModeBtn,
-  .top .controls > #strongModeBtn,
-  .top .controls > #rulesBtn,
-  .top .controls > #newBtn{
-    width:max-content;
-    min-width:0;
-    padding-left:10px;
-    padding-right:10px;
-    white-space:nowrap;
-  }
 }
 
 /* ===== Orientation-aware mobile/tablet layout ===== */
@@ -1478,14 +1437,6 @@ margin:15px;
 }
 
 @media (max-width:480px){
-  .top > .controls > .btn,
-  .top > .controls > .volumeControl{
-    height:44px;
-    min-height:44px;
-    font-size:13px;
-  }
-  .top > .controls > .volumeControl input{width:52px}
-
   .cpuInfoRow{
     grid-template-columns:repeat(5,minmax(0,1fr));
     column-gap:3px;
@@ -1605,7 +1556,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v373</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v374</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
