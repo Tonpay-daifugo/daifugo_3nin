@@ -55,11 +55,7 @@ margin:0;
   overflow-x:hidden;
   font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic",sans-serif;
   color:var(--text);
-  background:
-    radial-gradient(circle at 50% -10%,#13875455 0 18%,transparent 44%),
-    radial-gradient(circle at 14% 18%,#0d684055 0 12%,transparent 34%),
-    radial-gradient(circle at 88% 30%,#0b704755 0 10%,transparent 32%),
-    linear-gradient(145deg,#052f20 0%,#011a10 52%,#062719 100%);
+  background:#063222;
   background-attachment:fixed;
 }
 button{font:inherit}
@@ -73,9 +69,9 @@ position:relative;
   border:2px solid #f3c957;
   border-radius:28px;
   background:
-    radial-gradient(circle at 28% 16%,#ffffff0d 0 1px,transparent 1.6px) 0 0/9px 9px,
+    radial-gradient(circle at 28% 16%,#ffffff12 0 1px,transparent 1.6px) 0 0/9px 9px,
     radial-gradient(circle at 72% 62%,#00000010 0 1px,transparent 1.8px) 0 0/11px 11px,
-    linear-gradient(135deg,#0b6d40 0%,#064a2e 38%,#043621 72%,#075737 100%);
+    #0a4a31;
   box-shadow:
     0 22px 60px #000a,
     inset 0 1px 0 #fff7b0,
@@ -154,6 +150,15 @@ outline:2px solid #fff1a8;box-shadow:0 0 0 2px #7b4b05,0 0 16px #ffd34f99,inset 
   text-shadow:0 1px 0 #fff;
 }
 #normalModeBtn:not(.modeActive):hover{
+  background:linear-gradient(180deg,#ffffff 0%,#ececec 52%,#d4d4d4 100%);
+}
+#setNormalBtn{
+  background:linear-gradient(180deg,#f7f7f7 0%,#e4e4e4 52%,#c9c9c9 100%);
+  color:#303030;
+  border:1px solid #a9a9a9;
+  text-shadow:0 1px 0 #fff;
+}
+#setNormalBtn:hover{
   background:linear-gradient(180deg,#ffffff 0%,#ececec 52%,#d4d4d4 100%);
 }
 #normalModeBtn.modeActive{
@@ -457,6 +462,40 @@ position:relative;
     inset 0 0 28px #00170fa8,
     inset 0 1px 0 #fff29a77,
     0 7px 20px #0007;
+}
+#initialGameStartBtn{
+  position:absolute;
+  inset:0;
+  z-index:6;
+  display:none;
+  width:max-content;
+  height:max-content;
+  min-width:210px;
+  min-height:62px;
+  margin:auto;
+  padding:15px 30px;
+  font-size:24px;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  border:1px solid #f8d86e;
+  border-radius:13px;
+  background:linear-gradient(180deg,#fff7be 0%,#ffe26e 28%,#e8a91d 66%,#a26708 100%);
+  color:#2a250e;
+  font-weight:900;
+  cursor:pointer;
+  text-align:center;
+  text-shadow:0 1px 0 #fff9;
+  box-shadow:
+    inset 0 1px 0 #fffbd4,
+    inset 0 -2px 0 #71400099,
+    0 3px 0 #5c3707,
+    0 5px 12px #0007;
+  transition:.15s transform,.15s filter,.15s box-shadow;
+}
+#initialGameStartBtn:hover{
+  filter:brightness(1.10) saturate(1.05);
+  transform:translateY(-1px);
 }
 .center::before{
   content:"";
@@ -1223,6 +1262,7 @@ margin:15px;
   .modalbox{
     max-height:88vh;
   }
+  #modalbox.setStartBox,
   #modalbox.starterChoiceBox{
     width:81%;
     max-width:81vw;
@@ -1382,6 +1422,7 @@ margin:15px;
     justify-content:center;
   }
 
+  #modalbox.setStartBox,
   #modalbox.starterChoiceBox{
     width:auto;
     max-width:min(520px,calc(100vw - 32px));
@@ -1543,7 +1584,7 @@ if ("serviceWorker" in navigator) {
   <div class="panel scoreHistory" id="scoreHistory"></div>
   <div class="table">
     <div class="panel player" id="p1"><div class="cpuInfoRow"><div class="name" id="cpuName1">CPU 1</div><div class="role" id="role1">平民</div><div class="count" id="count1">13</div><div class="small" id="state1"></div></div><div class="opponentHand" id="opponentHand1"></div></div>
-    <div class="panel center"><div class="pilelabel" id="pileLabel">場は空です</div><div class="pile" id="pile"></div><div class="message" id="message"></div></div>
+    <div class="panel center"><div class="pilelabel" id="pileLabel">場は空です</div><div class="pile" id="pile"></div><div class="message" id="message"></div><button class="btn primary initialGameStartBtn" id="initialGameStartBtn" type="button">ゲーム開始</button></div>
     <div class="panel player" id="p2"><div class="cpuInfoRow"><div class="name" id="cpuName2">CPU 2</div><div class="role" id="role2">平民</div><div class="count" id="count2">13</div><div class="small" id="state2"></div></div><div class="opponentHand" id="opponentHand2"></div></div>
   </div>
   <div class="panel handpanel">
@@ -1552,7 +1593,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v360</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v369</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -6598,8 +6639,9 @@ function setupGame(next=false){
   addLog(`第${G.setNo}セット・第${G.gameInSet}ゲームの準備を開始しました`);
   render();
   if(startsNewSet){
-    // 第1セットは直接開始プレイヤーを選ぶ。第2セット以降は「セット開始」を経由する。
-    if(G.setNo===1)showStarterChoice();
+    // 第1セットは場中央の「ゲーム開始」を押してから開始プレイヤーを選ぶ。
+    // 第2セット以降は従来どおり「セット開始」モーダルを経由する。
+    if(G.setNo===1)showInitialGameStart();
     else showSetStart();
   }else{
     G.turn=old.lastOrder[2];
@@ -6608,6 +6650,8 @@ function setupGame(next=false){
 }
 function startPreparedGame(){
   CPU_MODE_LOCKED=true;
+  const initialStartBtn=$('#initialGameStartBtn');
+  if(initialStartBtn)initialStartBtn.style.display='none';
   // 交換・開始画面の状態を完全に解除してからゲームへ入る。
   $('#modal').classList.remove('show','starterLight','resultLight','exchangeLight');
   document.body.classList.remove('exchangePhase');
@@ -6624,6 +6668,19 @@ function startPreparedGame(){
     setTimeout(()=>{if(G.receivedFlashCardId===flashId){G.receivedFlashCardId=null;G.receivedFlashUntil=0;render()}},delay);
   }
   if(G.turn!==0)setTimeout(runCpu,500);
+}
+function showInitialGameStart(){
+  G.phase='game-ready';
+  CPU_MODE_LOCKED=false;
+  $('#modal').classList.remove('show','starterLight','resultLight','exchangeLight');
+  const btn=$('#initialGameStartBtn');
+  if(!btn)return;
+  btn.style.display='inline-flex';
+  btn.onclick=()=>{
+    btn.style.display='none';
+    btn.onclick=null;
+    showStarterChoice();
+  };
 }
 function showSetStart(){
   G.phase='set-ready';
@@ -7214,7 +7271,7 @@ $('#passBtn').onclick=async()=>{
   setTimeout(runCpu,400);
 };
 $('#clearBtn').onclick=()=>{G.selected.clear();render()};$('#blindBtn').onclick=()=>{if(G.over&&G.gameInSet===4)showBlind()};$('#nextBtn').onclick=()=>{if(G.over)setupGame(true)};$('#newBtn').onclick=()=>{if(confirm('戦績を破棄して最初から始めますか？')){CPU_MODE='normal';VIEW_MODE='normal';CPU_MODE_LOCKED=false;setupGame(false)}};
-$('#rulesBtn').onclick=()=>{const box=$('#modalbox');box.classList.remove('exchangeSevenWide');box.classList.add('rulesHalfWidth');box.innerHTML=`<h2>採用ルール</h2><div class="rules"><p><b>構成：</b>3人、通常札39枚（♠♥♦の3スート）＋ジョーカー1枚、ブラインド1枚、各13枚。ブラインドカードは4ゲームを1セットとして固定し、第4ゲーム終了後に確認できます。</p><p><b>強さ：</b>3＜4＜…＜A＜2＜JK。革命中は数字が逆転し、JKは常に最強。</p><p><b>出し方：</b>1枚、同ランク2枚以上、同一スートで3枚以上の階段。ジョーカーは不足カードの代用可。</p><p><b>特殊ルール：</b>3枚以上の同ランク出しで革命、8切り、スペ3返し、スート縛り（ジョーカーは縛りの不足スートを代用可能）、最強階段。</p><p><b>最強階段：</b>通常時におけるA-2-JKの3枚階段、ならびに革命時における3-4-JKの3枚階段は最強階段とします。最強階段が出された場合、場は直ちに流れます。</p><p><b>パス：</b>一度パスすると場が流れるまで復帰不可。場が流れて空場になった直後はパス不可。</p><p><b>反則上がり：</b>通常時の2、革命時の3、ジョーカーを含む手での上がり。8は階段以外では絶対に上がれず、スペード3は単騎上がりが反則です。</p><p><b>セット開始：</b>4ゲームを1セットとします。第1セットは開始プレイヤーを直接選び、第2セット以降は「セット開始」を押した後に選択します。新セットの第1ゲームは全員平民で、カード交換は行いません。</p><p><b>得点：</b>通常ゲームは富豪6点、平民3点、貧民0点。各セットの第4ゲームのみ富豪8点。得点は最初からやり直すまで累積し、ゲーム別得点も表示します。</p><p><b>都落ち：</b>前ゲームの富豪がまだ上がっていない状態で他のプレイヤーが合法的に上がると、その人が富豪、残る1人が平民、旧富豪が貧民となり、その時点でゲーム終了です。</p><p><b>効果音：</b>出札、パス、8切り、革命・革命返しで異なる音が鳴ります。画面上部のスライダーで音量を調節できます。</p><p><b>カード交換：</b>第2～4ゲームでは富豪と貧民が1枚交換します。富豪は相手のカードを受け取る前に渡す1枚を選びます。貧民の最強ランクが複数枚ある場合、貧民本人は渡すスートを選べます。交換完了後にゲームを開始し、前ゲームの貧民から始めます。新セットの第1ゲームは交換しません。</p><p class="small"></p></div><button class="btn" id="rulesClose">閉じる</button>`;$('#rulesClose').onclick=closeModal;openModal()};
+$('#rulesBtn').onclick=()=>{const box=$('#modalbox');box.classList.remove('exchangeSevenWide');box.classList.add('rulesHalfWidth');box.innerHTML=`<h2>採用ルール</h2><div class="rules"><p><b>構成：</b>3人、通常札39枚（♠♥♦の3スート）＋ジョーカー1枚、ブラインド1枚、各13枚。ブラインドカードは4ゲームを1セットとして固定し、第4ゲーム終了後に確認できます。</p><p><b>強さ：</b>3＜4＜…＜A＜2＜JK。革命中は数字が逆転し、JKは常に最強。</p><p><b>出し方：</b>1枚、同ランク2枚以上、同一スートで3枚以上の階段。ジョーカーは不足カードの代用可。</p><p><b>特殊ルール：</b>3枚以上の同ランク出しで革命、8切り、スペ3返し、スート縛り（ジョーカーは縛りの不足スートを代用可能）、最強階段。</p><p><b>最強階段：</b>通常時におけるA-2-JKの3枚階段、ならびに革命時における3-4-JKの3枚階段は最強階段とします。最強階段が出された場合、場は直ちに流れます。</p><p><b>パス：</b>一度パスすると場が流れるまで復帰不可。場が流れて空場になった直後はパス不可。</p><p><b>反則上がり：</b>通常時の2、革命時の3、ジョーカーを含む手での上がり。8は階段以外では絶対に上がれず、スペード3は単騎上がりが反則です。</p><p><b>都落ち：</b>前ゲームの富豪がまだ上がっていない状態で他のプレイヤーが合法的に上がると、その人が富豪、残る1人が平民、旧富豪が貧民となり、その時点でゲーム終了です。</p><p><b>セット：</b>4ゲームを1セットとします。各セットの第1ゲームは全員平民で、カード交換は行いません。</p><p><b>得点：</b>通常ゲームは富豪6点、平民3点、貧民0点。各セットの第4ゲームのみ富豪8点。得点は最初からやり直すまで累積し、ゲーム別得点も表示します。</p><p><b>カード交換：</b>第2～4ゲームでは富豪と貧民が1枚交換します。富豪は相手のカードを受け取る前に渡す1枚を選びます。貧民の最強ランクが複数枚ある場合、貧民本人は渡すスートを選べます。交換完了後にゲームを開始し、前ゲームの貧民から始めます。</p><p class="small"></p></div><button class="btn" id="rulesClose">閉じる</button>`;$('#rulesClose').onclick=closeModal;openModal()};
 $('#modal').onclick=e=>{if(e.target===$('#modal')&&G.phase!=='exchange'&&G.phase!=='starter'&&G.phase!=='set-ready')closeModal()};
 const volumeSlider=$('#volumeSlider'),volumeValue=$('#volumeValue');volumeSlider.value=Math.round(SOUND_VOLUME*100);volumeValue.textContent=`${volumeSlider.value}%`;volumeSlider.oninput=()=>{SOUND_VOLUME=Number(volumeSlider.value)/100;volumeValue.textContent=`${volumeSlider.value}%`;localStorage.setItem('daifugoSoundVolume',String(SOUND_VOLUME));};
 setupGame(false);
