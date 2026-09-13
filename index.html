@@ -1560,7 +1560,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v376</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v379</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -2456,7 +2456,7 @@ function updateBlindInferenceAtGameEnd(order){
         // 富豪/平民は、第1ゲームで出たカードを数字＋スートまでセット内で保持する。
         G.cpuBlindInferenceActive[i]=true;
         G.cpuBlindRankHistory[i]=[[...playedIds]];
-        // ブラインド候補はJokerも含む全40枚から開始し、既出カードを除外する。
+        // Jokerはブラインドにならないため、Jokerを除く39枚からブラインド候補を開始し、既出カードを除外する。
         G.cpuBlindCandidateIds[i]=makeDeck().filter(c=>!c.joker).map(c=>c.id).filter(id=>!playedIds.includes(id));
       }
     }
@@ -3455,6 +3455,294 @@ function orderCertainMovesForHand(hand,moves,revolution,preservingOnly=false){
 }
 // 後方互換用。探索箇所では可能な限り orderCertainMovesForHand を使う。
 
+
+// 第1段階の1対1専用拡張。
+// 従来の「自分の手に相手が返せない」だけでなく、相手が1回返した全分岐について、
+// 自分がさらに1回返し、その後に相手がもう返せない（または8切り等で場が流れる）なら、
+// そこから従来の第1段階へ戻して確実上がりを判定する。
+// 通常モードでは相手の手札全体が一意でなくても、CPUの既知情報から
+// 「相手が持ち得る応手」をすべて列挙して保守的に探索する。
+function cpuStage1HeadsUpOpponentInfo(i){
+  const active=G.players.map((p,j)=>({p,j})).filter(x=>!x.p.finished);
+  if(active.length!==2)return null;
+  const other=active.find(x=>x.j!==i);
+  if(!other)return null;
+
+  if(CPU_MODE==='strong'){
+    return {
+      index:other.j,
+      count:other.p.hand.length,
+      exactHand:G.players[other.j].hand.map(c=>({...c})),
+      possiblePool:null
+    };
+  }
+  if(CPU_MODE!=='normal')return null;
+
+  // 相手手札が一意に特定済みなら、その完全な既知手札を使う。
+  const known=cpuKnownOpponentHand(i,other.j);
+  if(known){
+    return {
+      index:other.j,
+      count:other.p.hand.length,
+      exactHand:known.map(c=>({...c})),
+      possiblePool:null
+    };
+  }
+
+  // 一意に特定できない場合は、自分の現手札・既出札・確定ブラインドを除いた札を
+  // 「相手が持ち得る札」とする。実際の相手手札は参照しない。
+  const mem=cpuMemory(i);
+  const unavailable=new Set([...mem.current,...mem.played]);
+  if(mem.blindId)unavailable.add(mem.blindId);
+  const possiblePool=makeDeck().filter(c=>!unavailable.has(c.id));
+
+  // 候補札が相手の残り枚数より少ない場合は、情報が矛盾しているので拡張探索しない。
+  if(possiblePool.length<other.p.hand.length)return null;
+
+  return {
+    index:other.j,
+    count:other.p.hand.length,
+    exactHand:null,
+    possiblePool:possiblePool.map(c=>({...c}))
+  };
+}
+
+// 通常モードで相手手札が未確定の場合、state の現在の場に対して
+// 相手が「持っている可能性がある」合法応手をすべて列挙する。
+// extraUsedIds は、この仮想分岐ですでに相手が出した札。
+function cpuStage1HeadsUpPossibleOpponentMoves(i,info,state,extraUsedIds=[],budget=null){
+  if(!info||state.turn!==info.index||!state.pile)return [];
+
+  // 完全に既知なら通常の合法手列挙をそのまま使う。
+  if(info.exactHand){
+    return certainSimLegalMoves(state,info.index);
+  }
+
+  const used=new Set(extraUsedIds);
+  const pool=info.possiblePool.filter(c=>!used.has(c.id));
+  const remainingCount=info.count-used.size;
+  const need=state.pile.n;
+
+  if(remainingCount<need||pool.length<remainingCount)return [];
+
+  const out=[];
+  const seen=new Set();
+
+  // 応手は場と同じ枚数しか出せないため、その枚数の組合せだけを列挙する。
+  for(const cs of cpuChooseCardHands(pool,need)){
+    if(budget&&budget.cutoff)break;
+    if(!countCertainState(budget))break;
+
+    for(const a of analysesInState(cs,state.revolution)){
+      if(!certainSimCompatible(state,a))continue;
+
+      // この応手で相手の手札が尽きる場合、反則上がりになる手は
+      // 相手の有効な最善応手として扱わない。
+      if(remainingCount===a.n&&isFoulFinishInState(a,state.revolution))continue;
+
+      const k=moveAnalysisKey(a);
+      if(seen.has(k))continue;
+      seen.add(k);
+      out.push(a);
+    }
+  }
+
+  return out;
+}
+
+// 相手手札が未確定でも certainSimApplyMove() で革命・縛り・手番を正確に進められるよう、
+// その分岐で必要な応手札＋任意の候補札だけから仮の手札を構成する。
+// 仮の補完札は相手の次の応手判定には使わず、次回も possiblePool から保守的に再列挙する。
+function cpuStage1ApplyPossibleOpponentMove(state,info,move,extraUsedIds=[]){
+  if(info.exactHand)return certainSimApplyMove(state,info.index,move);
+
+  const s=certainSimClone(state);
+  const used=new Set(extraUsedIds);
+  const moveIds=new Set(move.cards.map(c=>c.id));
+  const remainingCount=info.count-used.size;
+
+  const fillers=info.possiblePool.filter(c=>
+    !used.has(c.id)&&
+    !moveIds.has(c.id)
+  );
+
+  const fillerNeed=Math.max(0,remainingCount-move.n);
+  if(fillers.length<fillerNeed)return null;
+
+  s.players[info.index].hand=[
+    ...move.cards.map(c=>({...c})),
+    ...fillers.slice(0,fillerNeed).map(c=>({...c}))
+  ];
+
+  return certainSimApplyMove(s,info.index,move);
+}
+
+function cpuStage1HeadsUpOneReplyContinuation(
+  i,
+  cards,
+  revolution,
+  firstMove,
+  memo,
+  depthLeft,
+  budget,
+  preservingOnly=false,
+  useCurrentPile=false
+){
+  const opponentInfo=cpuStage1HeadsUpOpponentInfo(i);
+  if(!opponentInfo)return Infinity;
+  if(budget&&budget.cutoff)return Infinity;
+
+  // 現在の実局面を土台にし、再帰局面では「場が流れて自分が親」の状態を構成する。
+  const s=cloneCertainSimFromGame();
+  s.players[i].hand=cards.map(c=>({...c}));
+
+  // 完全既知なら実際に特定済みの手札を置く。
+  // 未確定なら枚数だけ正しく保つため候補集合から仮置きする。
+  if(opponentInfo.exactHand){
+    s.players[opponentInfo.index].hand=opponentInfo.exactHand.map(c=>({...c}));
+  }else{
+    s.players[opponentInfo.index].hand=
+      opponentInfo.possiblePool.slice(0,opponentInfo.count).map(c=>({...c}));
+  }
+
+  s.players.forEach((p,j)=>{
+    if(j===i||j===opponentInfo.index){
+      p.finished=false;
+      p.foul=false;
+      p.passed=false;
+    }
+  });
+  s.revolution=!!revolution;
+  s.turn=i;
+
+  if(!useCurrentPile){
+    s.pile=null;
+    s.lead=null;
+    s.lock=null;
+    s.commonPoorRevolutionLock=0;
+    s.commonPoorNoLeadRevolutionOnce=false;
+    s.players.forEach(p=>p.passed=false);
+  }
+
+  if(!certainSimCompatible(s,firstMove))return Infinity;
+  if(!countCertainState(budget))return Infinity;
+
+  const afterFirst=certainSimApplyMove(s,i,firstMove);
+  if(afterFirst.players[i].finished){
+    return afterFirst.players[i].foul?Infinity:1;
+  }
+
+  // 8切り・スペ3返し・最強階段などで最初の手だけで場が流れた場合は、
+  // そもそも従来の第1段階で扱えるため、この拡張では重複して認定しない。
+  if(!afterFirst.pile||afterFirst.turn===i)return Infinity;
+  if(afterFirst.turn!==opponentInfo.index)return Infinity;
+
+  const opponentMoves=cpuStage1HeadsUpPossibleOpponentMoves(
+    i,opponentInfo,afterFirst,[],budget
+  );
+  if(budget&&budget.cutoff)return Infinity;
+
+  // 相手は合法応手のどれか、またはパスを選べる。
+  // 通常モードで手札が未確定の場合も、「持ち得る」全応手を敵対的に評価する。
+  const opponentActions=[...opponentMoves,null];
+
+  let worstSteps=0;
+
+  // 相手は敵対的にどの応手でも選べるため、全分岐で成功する必要がある。
+  for(const reply of opponentActions){
+    if(budget&&budget.cutoff)return Infinity;
+    if(!countCertainState(budget))return Infinity;
+
+    const afterReply=reply
+      ?cpuStage1ApplyPossibleOpponentMove(afterFirst,opponentInfo,reply,[])
+      :certainSimApplyPass(afterFirst,opponentInfo.index);
+
+    if(!afterReply)return Infinity;
+
+    // 相手がこの1回の応手で先に合法上がりできる枝があれば確実手順ではない。
+    if(afterReply.players[opponentInfo.index].finished&&!afterReply.players[opponentInfo.index].foul){
+      return Infinity;
+    }
+
+    // 相手がパスした枝では場が流れて自分が親になるので、そのまま従来探索へ戻る。
+    if(!reply){
+      if(afterReply.turn!==i||afterReply.pile)return Infinity;
+      const rem=afterReply.players[i].hand.map(c=>({...c}));
+      const nextDepth=depthLeft===Infinity?Infinity:Math.max(0,depthLeft-1);
+      const rest=certainRunOutMinStepsBounded(
+        i,rem,afterReply.revolution,memo,nextDepth,budget,preservingOnly
+      );
+      if(!Number.isFinite(rest))return Infinity;
+      worstSteps=Math.max(worstSteps,rest);
+      continue;
+    }
+
+    // 相手が返した場合、自分がさらに1回だけ返す。
+    if(afterReply.turn!==i)return Infinity;
+    let counters=certainSimLegalMoves(afterReply,i);
+    counters=counters.filter(a=>
+      !cpuIsUnsafeSinglePlusJokerPairInHand(i,afterReply.players[i].hand,a,afterReply.revolution)
+    );
+    counters=orderCertainMovesForHand(
+      afterReply.players[i].hand,
+      counters,
+      afterReply.revolution,
+      preservingOnly
+    );
+
+    const replyIds=reply.cards.map(c=>c.id);
+    let branchBest=Infinity;
+
+    for(const counter of counters){
+      if(budget&&budget.cutoff)return Infinity;
+      if(!countCertainState(budget))return Infinity;
+
+      const afterCounter=certainSimApplyMove(afterReply,i,counter);
+
+      // この再応手で合法上がりなら、この分岐は成功。
+      if(afterCounter.players[i].finished){
+        if(!afterCounter.players[i].foul)branchBest=1;
+        if(Number.isFinite(branchBest))break;
+        continue;
+      }
+
+      let controlled=afterCounter;
+
+      // 8切り等なら既に場が流れて自分が親。
+      if(!(controlled.turn===i&&!controlled.pile)){
+        // それ以外は、相手がこの再応手に「持ち得る札のどれを使っても」返せない場合だけ、
+        // 強制パスで場が流れるところまで進める。
+        if(controlled.turn!==opponentInfo.index)continue;
+
+        const secondReplies=cpuStage1HeadsUpPossibleOpponentMoves(
+          i,opponentInfo,controlled,replyIds,budget
+        );
+        if(budget&&budget.cutoff)return Infinity;
+        if(secondReplies.length)continue;
+
+        controlled=certainSimApplyPass(controlled,opponentInfo.index);
+        if(controlled.turn!==i||controlled.pile)continue;
+      }
+
+      const rem=controlled.players[i].hand.map(c=>({...c}));
+      const nextDepth=depthLeft===Infinity?Infinity:Math.max(0,depthLeft-2);
+      const rest=certainRunOutMinStepsBounded(
+        i,rem,controlled.revolution,memo,nextDepth,budget,preservingOnly
+      );
+      if(Number.isFinite(rest)){
+        branchBest=1+rest;
+        break;
+      }
+    }
+
+    if(!Number.isFinite(branchBest))return Infinity;
+    worstSteps=Math.max(worstSteps,branchBest);
+  }
+
+  return 1+worstSteps;
+}
+
+
 function cpuMoveCertainFinishStepsBounded(i,a,memo=new Map(),budget=null){
   // 通常・最強共通の第1段階探索では、探索開始前にすでに上がっている相手は
   // もともと探索対象外であり、確実上がり失敗の理由にはしない。
@@ -3465,9 +3753,19 @@ function cpuMoveCertainFinishStepsBounded(i,a,memo=new Map(),budget=null){
 
   const nextRev=a.revolution?!G.revolution:G.revolution;
   const keepsControl=moveClearsPileWithoutOpponent(a,G.revolution)||cpuCanProveLeadMoveUnanswerable(i,a,G.revolution,null,true);
-  if(!keepsControl)return Infinity;
 
   const depthLeft=cpuCertainSearchDepthForState(remaining,nextRev,true);
+
+  if(!keepsControl){
+    // 1対1では第1段階を1往復だけ拡張し、
+    // 「相手が1回返す → 自分がさらに1回返して主導権を取り戻す」手順も調べる。
+    return cpuStage1HeadsUpOneReplyContinuation(
+      i,p.hand,G.revolution,a,memo,
+      depthLeft===Infinity?Infinity:depthLeft+1,
+      budget,false,true
+    );
+  }
+
   const rest=certainRunOutMinStepsBounded(i,remaining,nextRev,memo,depthLeft,budget);
   return Number.isFinite(rest)?1+rest:Infinity;
 }
@@ -3659,7 +3957,8 @@ function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLef
       seen.add(k);
       const clears=moveClearsPileWithoutOpponent(a,revolution);
       const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution,cards.length-a.n);
-      if(clears||unanswerable)candidates.push(a);
+      const headsUpOneReplyAvailable=!clears&&!unanswerable&&!!cpuStage1HeadsUpOpponentInfo(i);
+      if(clears||unanswerable||headsUpOneReplyAvailable)candidates.push(a);
     }
   }
 
@@ -3670,11 +3969,22 @@ function certainRunOutMinStepsBounded(i,cards,revolution,memo=new Map(),depthLef
     const remaining=cards.filter(c=>!used.has(c.id));
     const nextRevolution=a.revolution?!revolution:revolution;
     const nextDepth=depthLeft===Infinity?Infinity:Math.max(0,depthLeft-1);
-    const rest=certainRunOutMinStepsBounded(i,remaining,nextRevolution,memo,nextDepth,budget,preservingOnly);
+
+    const clears=moveClearsPileWithoutOpponent(a,revolution);
+    const unanswerable=cpuCanProveLeadMoveUnanswerable(i,a,revolution,cards.length-a.n);
+
+    let result=Infinity;
+    if(clears||unanswerable){
+      const rest=certainRunOutMinStepsBounded(i,remaining,nextRevolution,memo,nextDepth,budget,preservingOnly);
+      if(Number.isFinite(rest))result=1+rest;
+    }else{
+      result=cpuStage1HeadsUpOneReplyContinuation(
+        i,cards,revolution,a,memo,depthLeft,budget,preservingOnly,false
+      );
+    }
 
     // 一つでも確実ルートが見つかったら、手数比較をせず即終了。
-    if(Number.isFinite(rest)){
-      const result=1+rest;
+    if(Number.isFinite(result)){
       memo.set(key,result);
       return result;
     }
