@@ -1560,7 +1560,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v380</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v381</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -5266,10 +5266,13 @@ async function runCpu(){
   // ただし、現在の場札が富豪による革命手なら、
   // 優先条件「富豪が革命したら平民と貧民は革命返しする」を優先して、この禁止を適用しない。
   // また、残り手札で自分が確実に上がれる革命手は例外として許可する。
+  const currentLastPilePlay=(G.pileHistory&&G.pileHistory.length)
+    ?G.pileHistory[G.pileHistory.length-1]
+    :null;
   const currentPileIsRichRevolution=!!(
     G.pile&&G.pile.revolution&&
-    lastPilePlay&&
-    G.players[lastPilePlay.player]?.role==='富豪'
+    currentLastPilePlay&&
+    G.players[currentLastPilePlay.player]?.role==='富豪'
   );
   if(commonOrPoor&&legal.length&&G.commonPoorRevolutionLock&&!currentPileIsRichRevolution){
     const revolutionStarter=G.commonPoorRevolutionLock-1;
