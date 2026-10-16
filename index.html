@@ -1649,7 +1649,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v391</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v395</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -3060,6 +3060,8 @@ function cpuMoveCertainlyUnanswerableByPlayer(i,a,target,revolutionBefore){
     return true;
   }
   if(a.type==='straight'){
+    // 確実手順探索：不完全情報では4枚以上の階段は返されないと仮定する。
+    if(a.n>=4)return true;
     const bySuit={};
     for(const [s] of SUITS)bySuit[s]=new Set();
     for(const c of natural)bySuit[c.suit].add(c.rank);
@@ -3196,6 +3198,8 @@ function cpuCanProveLeadMoveUnanswerable(i,a,revolutionBefore,ownCountAfterMove=
   }
 
   if(a.type==='straight'){
+    // 確実手順探索：不完全情報では4枚以上の階段は返されないと仮定する。
+    if(a.n>=4)return true;
     const bySuit={};
     for(const [s] of SUITS)bySuit[s]=new Set();
     for(const c of natural)bySuit[c.suit].add(c.rank);
@@ -5370,21 +5374,6 @@ async function runCpu(){
     }
   }
 
-  // 【絶対】残り手札が2枚でJokerを含み、相手がスペード3を持っている可能性がある場合はパスする。
-  if(G.pile&&p.hand.length===2&&p.hand.some(c=>c.joker)&&canPassAsActionEarly){
-    const opponentMayHaveS3=(()=>{
-      if(CPU_MODE==='strong'){
-        return G.players.some((x,j)=>j!==i&&!x.finished&&x.hand.some(c=>c.id==='S3'));
-      }
-      const mem=cpuMemory(i);
-      if(mem.current.has('S3')||mem.played.has('S3')||mem.blindId==='S3')return false;
-      return true;
-    })();
-    if(opponentMayHaveS3){
-      if(await cpuTryPass(i))return;
-    }
-  }
-
   // 【絶対】相手の単騎への追従で、残り5枚以下の人が誰もいない間はジョーカーを出さない。
   // ただしCPU自身が5枚以下なら使用可。ほかの誰かが5枚以下の場合も使用可。
   const anyoneAtFiveOrLess=G.players.some(x=>!x.finished&&x.hand.length<=5);
@@ -5401,7 +5390,7 @@ async function runCpu(){
 
   // 【絶対】誰もパスしておらず、相手がスペード3を持っている可能性がある時はJoker単騎を出さない。
   // ただし、現在カードを出した相手の残り手札が5枚以下で、その場札より強いものを自分が持っていない時は、
-  // 完全情報なら相手の実手札を見て判断し、完全情報でない時だけ50%の確率でJoker単騎を許可する。
+  // 完全情報ならパスしていない相手全員の実手札を見て判断し、完全情報でない時だけ50%の確率でJoker単騎を許可する。
   // 自分が平民で、現在カードを出した相手が貧民の場合はこの例外を適用せずJokerを出さない。
   const anyOpponentMayHaveS3=(()=>{
     if(CPU_MODE==='strong'){
@@ -5432,14 +5421,15 @@ async function runCpu(){
     if(!(nobodyPassed&&anyOpponentMayHaveS3&&shortLeaderNoStrongerInOwnHand&&!commonVsPoorNoJokerException))return false;
 
     if(cpuCanUseFullResponseSearch(i)){
-      // 完全情報が使える局面では確率を使わず、現在の出し手の実手札を見て判断する。
+      // 完全情報が使える局面では確率を使わず、パスしていない相手の♠3を確認する。
       if(G.lead===null||G.lead===i)return false;
       const leader=G.players[G.lead];
       const pileRank=G.pile&&G.pile.rank;
       if(!leader||!G.pile||pileRank===16)return false;
 
-      // 相手が♠3を実際に持っているならJoker単騎は出さない。
-      if(leader.hand.some(c=>c.id==='S3'))return false;
+      // 現在パスしていない相手の誰かが♠3を持っているなら、Joker単騎は禁止。
+      // 出し手だけでなく、もう一人の相手も判定する。
+      if(G.players.some((op,j)=>j!==i&&!op.finished&&!op.passed&&op.hand.some(c=>c.id==='S3')))return false;
 
       // 相手が場札より強い通常札を持っているなら、Jokerを使う必要はないと判断して出さない。
       const leaderHasStrongerNatural=leader.hand.some(c=>
@@ -6736,9 +6726,9 @@ async function runCpu(){
   // ここでも再探索せず、前段で証明済みの確実手だけを見る。
   const certainNow=legal.filter(a=>certainFinishMoves.has(moveKey(a)));
 
-  // 【優先】残り手札が6組以上で、現在の場に出せる手がJokerを使うものしかない場合はパスする。
+  // 【優先】残り手札が4組以上で、現在の場に出せる手がJokerを使うものしかない場合はパスする。
   // 空場・各種絶対パス禁止・確定上がりルートでは発動しない。
-  if(remainingGroups>=6&&canPassAsAction&&!certainNow.length&&legal.length&&legal.every(a=>a.cards.some(c=>c.joker))){
+  if(remainingGroups>=4&&canPassAsAction&&!certainNow.length&&legal.length&&legal.every(a=>a.cards.some(c=>c.joker))){
     if(await cpuTryPass(i))return;
   }
 
