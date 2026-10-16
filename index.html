@@ -1649,7 +1649,7 @@ if ("serviceWorker" in navigator) {
     <div class="controls"><button class="btn primary" id="playBtn">出す</button><button class="btn" id="passBtn">パス</button><button class="btn" id="clearBtn">選択解除</button><button class="btn" id="blindBtn" style="display:none">ブラインドカードを見る</button><button class="btn primary" id="nextBtn" style="display:none">次のゲーム</button></div>
   </div>
   <div class="panel log" id="log"></div>
-  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v395</div>
+  <div class="footer">ローカルで動作します。通信・保存・課金はありません。　v396</div>
 </div>
 <div class="effectOverlay" id="effectOverlay"><div class="effectText" id="effectText"></div></div>
 <div class="modal" id="modal"><div class="modalbox" id="modalbox"></div></div>
@@ -5476,7 +5476,11 @@ async function runCpu(){
   if(!G.revolution&&G.jokerPlayed&&hasS3&&!hasOtherThree&&!spade3Bundled){
     if(isLead){
       const forced=nonFoulLegal.filter(isSingleS3);
-      if(forced.length)legal=forced;
+      if(forced.length){
+        // 【絶対・強制出札】候補限定だけでは後続のパス条件に覆されるため、ここで確定する。
+        await playMove(i,forced[0]);
+        return;
+      }
     }else if(G.pile&&G.pile.type==='single'&&strength(G.pile.rank,false)<strength(8,false)&&p.hand.some(c=>!c.joker&&c.rank===8)){
       const forced=nonFoulLegal.filter(isSingleEight);
 
@@ -5490,7 +5494,15 @@ async function runCpu(){
         return singlesAfter-singlesBefore<2;
       });
 
-      if(forcedWithoutTwoNewSingles.length)legal=forcedWithoutTwoNewSingles;
+      if(forcedWithoutTwoNewSingles.length){
+        // 【絶対・強制出札】8の候補から弱い札を選び、下位のまとまり保持・通常パス評価を通さない。
+        const chosen=[...forcedWithoutTwoNewSingles].sort((a,b)=>
+          strength(a.rank,G.revolution)-strength(b.rank,G.revolution)||
+          a.cards[0].id.localeCompare(b.cards[0].id)
+        )[0];
+        await playMove(i,chosen);
+        return;
+      }
     }
   }
 
